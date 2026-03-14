@@ -6,12 +6,16 @@ import {
     Camera,
     Download,
     Flame,
+    Hand,
+    Bell
 } from 'lucide-react';
 
 const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    {id: 'friend', label : 'Friend' , icon :Hand},
+    {id:'notification', label: 'Notification' , icon : Bell},
     { id: 'photos', label: 'Photo Journal', icon: Camera },
     { id: 'export', label: 'Export', icon: Download },
 ];

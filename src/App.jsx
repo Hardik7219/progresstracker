@@ -6,6 +6,9 @@ import ProgressAnalytics from './components/ProgressAnalytics';
 import PhotoJournal from './components/PhotoJournal';
 import ExportData from './components/ExportData';
 import ThemeToggle from './components/ThemeToggle';
+import FriendData from './components/FriendData';
+import Notification from './components/Notification';
+
 import { getSettings, updateSettings } from './services/storageService';
 
 export default function App() {
@@ -43,6 +46,10 @@ export default function App() {
                 return <TaskManager onRefresh={triggerRefresh} />;
             case 'analytics':
                 return <ProgressAnalytics refreshKey={refreshKey} />;
+            case 'friend' :
+                return <FriendData refreshKey={refreshKey}></FriendData>
+            case 'notification' : 
+                return <Notification refreshKey={refreshKey}></Notification>
             case 'photos':
                 return <PhotoJournal onRefresh={triggerRefresh} refreshKey={refreshKey} />;
             case 'export':
