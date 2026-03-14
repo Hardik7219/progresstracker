@@ -1,138 +1,230 @@
-/**
- * NotificationSettings.jsx
- *
- * Drop this anywhere in your settings UI.
- * Shows a toggle to enable/disable daily reminders and a time picker.
- * Works on both browser and Android via notificationService.
- */
 import React, { useState, useEffect } from 'react';
-import {
-    requestPermission,
-    hasPermission,
-    scheduleDailyReminder,
-    cancelNotification,
-} from '../services/notificationService';
-import { getSettings, updateSettings } from '../services/storageService';
-import { Bell, BellOff } from 'lucide-react';
+import { Bell, Plus, Trash2, Clock, CheckCircle2 } from 'lucide-react';
+import { requestPermission, hasPermission, scheduleAt, cancelNotification } from '../services/notificationService';
+import { format } from 'date-fns';
 
-const REMINDER_ID = 1001; // stable id for the daily reminder
+const STORAGE_KEY = 'pt_scheduled_notifications';
 
-export default function NotificationSettings() {
-    const settings = getSettings();
-    const [enabled, setEnabled]   = useState(settings.notificationsEnabled ?? false);
-    const [time, setTime]         = useState(settings.reminderTime ?? '09:00');
-    const [status, setStatus]     = useState(''); // 'saved' | 'denied' | ''
+function loadNotifications() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    } catch {
+        return [];
+    }
+}
+
+function saveNotifications(list) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function generateId() {
+    // Capacitor notification ids must be integers
+    return Math.floor(Math.random() * 2000000) + 1;
+}
+
+export default function Notifications() {
+    const [notifications, setNotifications] = useState(loadNotifications);
+    const [title, setTitle] = useState('');
+    const [datetime, setDatetime] = useState('');
+    const [permGranted, setPermGranted] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     useEffect(() => {
-        // Sync toggle with actual OS permission on mount
-        hasPermission().then((granted) => {
-            if (!granted) setEnabled(false);
-        });
+        hasPermission().then(setPermGranted);
+        // Clean up past notifications from the list on load
+        const now = Date.now();
+        const filtered = loadNotifications().filter(n => new Date(n.at).getTime() > now);
+        setNotifications(filtered);
+        saveNotifications(filtered);
     }, []);
 
-    async function handleToggle() {
-        if (!enabled) {
-            // Turning ON — request permission first
+    async function handleRequestPermission() {
+        const granted = await requestPermission();
+        setPermGranted(granted);
+        if (!granted) setError('Permission denied. Please enable notifications in your device settings.');
+    }
+
+    async function handleSchedule(e) {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+
+        if (!title.trim()) { setError('Please enter a title.'); return; }
+        if (!datetime) { setError('Please pick a date and time.'); return; }
+
+        const at = new Date(datetime);
+        if (at <= new Date()) { setError('Please pick a future date and time.'); return; }
+
+        if (!permGranted) {
             const granted = await requestPermission();
-            if (!granted) {
-                setStatus('denied');
-                setTimeout(() => setStatus(''), 3000);
-                return;
-            }
-            const [hour, minute] = time.split(':').map(Number);
-            await scheduleDailyReminder({
-                id:     REMINDER_ID,
-                hour,
-                minute,
-                title:  '📋 Progress Tracker',
-                body:   "Don't forget to check your tasks and keep your streak alive!",
-            });
-            setEnabled(true);
-            updateSettings({ notificationsEnabled: true, reminderTime: time });
-            setStatus('saved');
-        } else {
-            // Turning OFF — cancel the scheduled notification
-            await cancelNotification(REMINDER_ID);
-            setEnabled(false);
-            updateSettings({ notificationsEnabled: false });
-            setStatus('');
+            setPermGranted(granted);
+            if (!granted) { setError('Notification permission denied.'); return; }
         }
-        setTimeout(() => setStatus(''), 3000);
+
+        const id = generateId();
+        await scheduleAt({ id, title: title.trim(), body: '', at });
+
+        const newNotif = { id, title: title.trim(), at: at.toISOString() };
+        const updated = [...notifications, newNotif].sort((a, b) => new Date(a.at) - new Date(b.at));
+        setNotifications(updated);
+        saveNotifications(updated);
+
+        setTitle('');
+        setDatetime('');
+        setSuccess(`Notification scheduled for ${format(at, 'MMM dd, yyyy · hh:mm a')}`);
+        setTimeout(() => setSuccess(''), 4000);
     }
 
-    async function handleTimeChange(e) {
-        const newTime = e.target.value;
-        setTime(newTime);
-        updateSettings({ reminderTime: newTime });
-
-        if (enabled) {
-            // Re-schedule at the new time immediately
-            const [hour, minute] = newTime.split(':').map(Number);
-            await scheduleDailyReminder({
-                id:     REMINDER_ID,
-                hour,
-                minute,
-                title:  '📋 Progress Tracker',
-                body:   "Don't forget to check your tasks and keep your streak alive!",
-            });
-            setStatus('saved');
-            setTimeout(() => setStatus(''), 2000);
-        }
+    async function handleDelete(notif) {
+        await cancelNotification(notif.id);
+        const updated = notifications.filter(n => n.id !== notif.id);
+        setNotifications(updated);
+        saveNotifications(updated);
     }
+
+    const now = new Date();
+    const upcoming = notifications.filter(n => new Date(n.at) > now);
+    const past     = notifications.filter(n => new Date(n.at) <= now);
+
+    // Min datetime for the picker = now (rounded to next minute)
+    const minDatetime = new Date(Math.ceil(Date.now() / 60000) * 60000)
+        .toISOString().slice(0, 16);
 
     return (
-        <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
-            <div className="card-header">
-                <h2>{enabled ? <Bell size={18} /> : <BellOff size={18} />} Daily Reminder</h2>
+        <div className="notifications-page" style={{ maxWidth: 600, margin: '0 auto' }}>
+            <div className="page-header">
+                <div>
+                    <h1>Notifications</h1>
+                    <p className="subtitle">Schedule reminders with a custom title and time</p>
+                </div>
             </div>
 
-            <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
-                Get a daily nudge to check your tasks and keep your streak going.
-                Works on Android even when the app is closed.
-            </p>
+            {/* Permission banner */}
+            {!permGranted && (
+                <div className="archive-banner" style={{ marginBottom: '1.5rem' }}>
+                    <Bell size={18} />
+                    <span>Notification permission is required to send alerts.</span>
+                    <button className="btn-sm btn-primary" onClick={handleRequestPermission}>
+                        Allow Notifications
+                    </button>
+                </div>
+            )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                {/* Toggle */}
-                <button
-                    className={`btn ${enabled ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={handleToggle}
-                >
-                    {enabled ? '🔔 Reminder On' : '🔕 Reminder Off'}
-                </button>
-
-                {/* Time picker — only visible when enabled */}
-                {enabled && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                            Remind me at:
-                        </label>
+            {/* Schedule form */}
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+                <div className="card-header">
+                    <h2><Plus size={18} /> New Notification</h2>
+                </div>
+                <form onSubmit={handleSchedule} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0 0 0.5rem' }}>
+                    <div className="form-group">
+                        <label htmlFor="notif-title">Title</label>
                         <input
-                            type="time"
-                            value={time}
-                            onChange={handleTimeChange}
+                            id="notif-title"
+                            type="text"
+                            value={title}
+                            onChange={e => setTitle(e.target.value)}
+                            placeholder="e.g. Take a break, Review tasks..."
+                            maxLength={80}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="notif-datetime">Date &amp; Time</label>
+                        <input
+                            id="notif-datetime"
+                            type="datetime-local"
+                            value={datetime}
+                            min={minDatetime}
+                            onChange={e => setDatetime(e.target.value)}
                             style={{
                                 background: 'var(--color-bg-input)',
                                 border: '1px solid var(--color-border)',
                                 borderRadius: 'var(--radius-sm)',
                                 color: 'var(--color-text)',
-                                padding: '4px 8px',
-                                fontSize: '0.9rem',
+                                padding: '8px 12px',
+                                fontSize: '0.95rem',
+                                width: '100%',
                             }}
                         />
                     </div>
+
+                    {error && (
+                        <p style={{ color: 'var(--color-amber)', fontSize: '0.85rem', margin: 0 }}>⚠️ {error}</p>
+                    )}
+                    {success && (
+                        <p style={{ color: 'var(--color-emerald)', fontSize: '0.85rem', margin: 0 }}>✅ {success}</p>
+                    )}
+
+                    <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+                        <Bell size={16} /> Schedule Notification
+                    </button>
+                </form>
+            </div>
+
+            {/* Upcoming */}
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+                <div className="card-header">
+                    <h2><Clock size={18} /> Upcoming ({upcoming.length})</h2>
+                </div>
+                {upcoming.length === 0 ? (
+                    <div className="empty-state">
+                        <span className="empty-icon">🔔</span>
+                        <p>No upcoming notifications. Schedule one above!</p>
+                    </div>
+                ) : (
+                    <ul className="task-list" style={{ padding: '0.25rem 0' }}>
+                        {upcoming.map(n => (
+                            <li key={n.id} className="task-card" style={{ alignItems: 'center' }}>
+                                <Bell size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                                <div className="task-content">
+                                    <div className="task-title" style={{ fontWeight: 600 }}>{n.title}</div>
+                                    <div className="task-meta">
+                                        <Clock size={12} />
+                                        {format(new Date(n.at), 'MMM dd, yyyy · hh:mm a')}
+                                    </div>
+                                </div>
+                                <button
+                                    className="btn-icon btn-danger"
+                                    onClick={() => handleDelete(n)}
+                                    title="Cancel notification"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
                 )}
             </div>
 
-            {/* Status messages */}
-            {status === 'saved' && (
-                <p style={{ marginTop: '0.75rem', color: 'var(--color-emerald)', fontSize: '0.85rem' }}>
-                    ✓ Reminder saved!
-                </p>
-            )}
-            {status === 'denied' && (
-                <p style={{ marginTop: '0.75rem', color: 'var(--color-amber)', fontSize: '0.85rem' }}>
-                    ⚠️ Notification permission denied. Please enable it in your device settings.
-                </p>
+            {/* Past (shown only if any) */}
+            {past.length > 0 && (
+                <div className="card">
+                    <div className="card-header">
+                        <h2><CheckCircle2 size={18} /> Sent ({past.length})</h2>
+                        <button
+                            className="btn-sm btn-ghost"
+                            onClick={() => {
+                                saveNotifications(upcoming);
+                                setNotifications(upcoming);
+                            }}
+                        >
+                            Clear
+                        </button>
+                    </div>
+                    <ul className="task-list" style={{ padding: '0.25rem 0' }}>
+                        {past.map(n => (
+                            <li key={n.id} className="task-card task-completed" style={{ alignItems: 'center' }}>
+                                <CheckCircle2 size={20} style={{ color: 'var(--color-emerald)', flexShrink: 0 }} />
+                                <div className="task-content">
+                                    <div className="task-title done">{n.title}</div>
+                                    <div className="task-meta">
+                                        {format(new Date(n.at), 'MMM dd, yyyy · hh:mm a')}
+                                    </div>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
             )}
         </div>
     );
