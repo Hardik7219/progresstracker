@@ -7,7 +7,7 @@ import PhotoJournal from './components/PhotoJournal';
 import ExportData from './components/ExportData';
 import ThemeToggle from './components/ThemeToggle';
 import FriendData from './components/FriendData';
-import Notification from './components/Notification';
+import Notification from './components/NotificationSettings';
 
 import { getSettings, updateSettings } from './services/storageService';
 
