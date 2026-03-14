@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Plus, Trash2, Clock, CheckCircle2 } from 'lucide-react';
+import { Bell, Plus, Trash2, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { requestPermission, hasPermission, scheduleAt, cancelNotification } from '../services/notificationService';
 import { format } from 'date-fns';
 
@@ -18,31 +18,34 @@ function saveNotifications(list) {
 }
 
 function generateId() {
-    // Capacitor notification ids must be integers
     return Math.floor(Math.random() * 2000000) + 1;
 }
 
 export default function Notifications() {
-    const [notifications, setNotifications] = useState(loadNotifications);
+    const [notifications, setNotifications] = useState([]);
     const [title, setTitle] = useState('');
     const [datetime, setDatetime] = useState('');
     const [permGranted, setPermGranted] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
+        // Load all saved notifications (don't filter — show them all, split in render)
+        const saved = loadNotifications();
+        setNotifications(saved);
+
+        // Check permission
         hasPermission().then(setPermGranted);
-        // Clean up past notifications from the list on load
-        const now = Date.now();
-        const filtered = loadNotifications().filter(n => new Date(n.at).getTime() > now);
-        setNotifications(filtered);
-        saveNotifications(filtered);
     }, []);
 
     async function handleRequestPermission() {
+        setError('');
         const granted = await requestPermission();
         setPermGranted(granted);
-        if (!granted) setError('Permission denied. Please enable notifications in your device settings.');
+        if (!granted) {
+            setError('Permission denied. Please enable notifications in your device settings.');
+        }
     }
 
     async function handleSchedule(e) {
@@ -50,63 +53,111 @@ export default function Notifications() {
         setError('');
         setSuccess('');
 
-        if (!title.trim()) { setError('Please enter a title.'); return; }
-        if (!datetime) { setError('Please pick a date and time.'); return; }
+        if (!title.trim()) {
+            setError('Please enter a title.');
+            return;
+        }
+        if (!datetime) {
+            setError('Please pick a date and time.');
+            return;
+        }
 
         const at = new Date(datetime);
-        if (at <= new Date()) { setError('Please pick a future date and time.'); return; }
+        if (at <= new Date()) {
+            setError('Please pick a future date and time.');
+            return;
+        }
 
+        // Request permission if not granted yet
         if (!permGranted) {
             const granted = await requestPermission();
             setPermGranted(granted);
-            if (!granted) { setError('Notification permission denied.'); return; }
+            if (!granted) {
+                setError('Notification permission is required.');
+                return;
+            }
         }
 
-        const id = generateId();
-        await scheduleAt({ id, title: title.trim(), body: '', at });
+        setLoading(true);
+        try {
+            const id = generateId();
 
-        const newNotif = { id, title: title.trim(), at: at.toISOString() };
-        const updated = [...notifications, newNotif].sort((a, b) => new Date(a.at) - new Date(b.at));
-        setNotifications(updated);
-        saveNotifications(updated);
+            // Schedule the actual notification
+            await scheduleAt({
+                id,
+                title: title.trim(),
+                body: title.trim(), // use title as body too — some Android versions need non-empty body
+                at,
+            });
 
-        setTitle('');
-        setDatetime('');
-        setSuccess(`Notification scheduled for ${format(at, 'MMM dd, yyyy · hh:mm a')}`);
-        setTimeout(() => setSuccess(''), 4000);
+            // Save to list
+            const newNotif = {
+                id,
+                title: title.trim(),
+                at: at.toISOString(),
+            };
+
+            const updated = [...notifications, newNotif].sort(
+                (a, b) => new Date(a.at) - new Date(b.at)
+            );
+            setNotifications(updated);
+            saveNotifications(updated);
+
+            setTitle('');
+            setDatetime('');
+            setSuccess(`✅ Scheduled for ${format(at, 'MMM dd, yyyy · hh:mm a')}`);
+            setTimeout(() => setSuccess(''), 5000);
+        } catch (err) {
+            console.error('Schedule error:', err);
+            setError(`Failed to schedule: ${err?.message || 'Unknown error'}`);
+        } finally {
+            setLoading(false);
+        }
     }
 
     async function handleDelete(notif) {
-        await cancelNotification(notif.id);
+        try {
+            await cancelNotification(notif.id);
+        } catch (err) {
+            console.warn('Cancel error (may already be fired):', err);
+        }
         const updated = notifications.filter(n => n.id !== notif.id);
         setNotifications(updated);
         saveNotifications(updated);
     }
 
+    function handleClearPast() {
+        const now = Date.now();
+        const upcoming = notifications.filter(n => new Date(n.at).getTime() > now);
+        setNotifications(upcoming);
+        saveNotifications(upcoming);
+    }
+
     const now = new Date();
     const upcoming = notifications.filter(n => new Date(n.at) > now);
-    const past     = notifications.filter(n => new Date(n.at) <= now);
+    const past = notifications.filter(n => new Date(n.at) <= now);
 
-    // Min datetime for the picker = now (rounded to next minute)
-    const minDatetime = new Date(Math.ceil(Date.now() / 60000) * 60000)
-        .toISOString().slice(0, 16);
+    // Min value for datetime-local input = current time (browser local)
+    const pad = v => String(v).padStart(2, '0');
+    const localNow = new Date();
+    const minDatetime = `${localNow.getFullYear()}-${pad(localNow.getMonth() + 1)}-${pad(localNow.getDate())}T${pad(localNow.getHours())}:${pad(localNow.getMinutes())}`;
 
     return (
-        <div className="notifications-page" style={{ maxWidth: 600, margin: '0 auto' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto' }}>
             <div className="page-header">
                 <div>
                     <h1>Notifications</h1>
-                    <p className="subtitle">Schedule reminders with a custom title and time</p>
+                    <p className="subtitle">Schedule reminders by title and time</p>
                 </div>
             </div>
 
             {/* Permission banner */}
             {!permGranted && (
                 <div className="archive-banner" style={{ marginBottom: '1.5rem' }}>
-                    <Bell size={18} />
-                    <span>Notification permission is required to send alerts.</span>
+                    <AlertTriangle size={18} />
+                    <span>Notification permission needed to send alerts.</span>
                     <button className="btn-sm btn-primary" onClick={handleRequestPermission}>
-                        Allow Notifications
+                        Allow
                     </button>
                 </div>
             )}
@@ -114,11 +165,12 @@ export default function Notifications() {
             {/* Schedule form */}
             <div className="card" style={{ marginBottom: '1.5rem' }}>
                 <div className="card-header">
-                    <h2><Plus size={18} /> New Notification</h2>
+                    <h2><Plus size={18} /> Schedule Notification</h2>
                 </div>
-                <form onSubmit={handleSchedule} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0 0 0.5rem' }}>
+                <form onSubmit={handleSchedule} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
                     <div className="form-group">
-                        <label htmlFor="notif-title">Title</label>
+                        <label htmlFor="notif-title">Title *</label>
                         <input
                             id="notif-title"
                             type="text"
@@ -126,12 +178,14 @@ export default function Notifications() {
                             onChange={e => setTitle(e.target.value)}
                             placeholder="e.g. Take a break, Review tasks..."
                             maxLength={80}
+                            autoComplete="off"
                         />
                     </div>
+
                     <div className="form-group">
-                        <label htmlFor="notif-datetime">Date &amp; Time</label>
+                        <label htmlFor="notif-time">Date &amp; Time *</label>
                         <input
-                            id="notif-datetime"
+                            id="notif-time"
                             type="datetime-local"
                             value={datetime}
                             min={minDatetime}
@@ -144,19 +198,30 @@ export default function Notifications() {
                                 padding: '8px 12px',
                                 fontSize: '0.95rem',
                                 width: '100%',
+                                boxSizing: 'border-box',
                             }}
                         />
                     </div>
 
                     {error && (
-                        <p style={{ color: 'var(--color-amber)', fontSize: '0.85rem', margin: 0 }}>⚠️ {error}</p>
+                        <p style={{ color: 'var(--color-amber)', fontSize: '0.85rem', margin: 0 }}>
+                            ⚠️ {error}
+                        </p>
                     )}
                     {success && (
-                        <p style={{ color: 'var(--color-emerald)', fontSize: '0.85rem', margin: 0 }}>✅ {success}</p>
+                        <p style={{ color: 'var(--color-emerald)', fontSize: '0.85rem', margin: 0 }}>
+                            {success}
+                        </p>
                     )}
 
-                    <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
-                        <Bell size={16} /> Schedule Notification
+                    <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={loading}
+                        style={{ alignSelf: 'flex-start' }}
+                    >
+                        <Bell size={16} />
+                        {loading ? 'Scheduling...' : 'Schedule'}
                     </button>
                 </form>
             </div>
@@ -169,16 +234,16 @@ export default function Notifications() {
                 {upcoming.length === 0 ? (
                     <div className="empty-state">
                         <span className="empty-icon">🔔</span>
-                        <p>No upcoming notifications. Schedule one above!</p>
+                        <p>No upcoming notifications.</p>
                     </div>
                 ) : (
-                    <ul className="task-list" style={{ padding: '0.25rem 0' }}>
+                    <div className="task-list" style={{ padding: '0.25rem 0' }}>
                         {upcoming.map(n => (
-                            <li key={n.id} className="task-card" style={{ alignItems: 'center' }}>
+                            <div key={n.id} className="task-card" style={{ alignItems: 'center' }}>
                                 <Bell size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
                                 <div className="task-content">
                                     <div className="task-title" style={{ fontWeight: 600 }}>{n.title}</div>
-                                    <div className="task-meta">
+                                    <div className="task-meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Clock size={12} />
                                         {format(new Date(n.at), 'MMM dd, yyyy · hh:mm a')}
                                     </div>
@@ -186,34 +251,28 @@ export default function Notifications() {
                                 <button
                                     className="btn-icon btn-danger"
                                     onClick={() => handleDelete(n)}
-                                    title="Cancel notification"
+                                    title="Cancel"
                                 >
                                     <Trash2 size={16} />
                                 </button>
-                            </li>
+                            </div>
                         ))}
-                    </ul>
+                    </div>
                 )}
             </div>
 
-            {/* Past (shown only if any) */}
+            {/* Past */}
             {past.length > 0 && (
                 <div className="card">
                     <div className="card-header">
                         <h2><CheckCircle2 size={18} /> Sent ({past.length})</h2>
-                        <button
-                            className="btn-sm btn-ghost"
-                            onClick={() => {
-                                saveNotifications(upcoming);
-                                setNotifications(upcoming);
-                            }}
-                        >
+                        <button className="btn-sm btn-ghost" onClick={handleClearPast}>
                             Clear
                         </button>
                     </div>
-                    <ul className="task-list" style={{ padding: '0.25rem 0' }}>
+                    <div className="task-list" style={{ padding: '0.25rem 0' }}>
                         {past.map(n => (
-                            <li key={n.id} className="task-card task-completed" style={{ alignItems: 'center' }}>
+                            <div key={n.id} className="task-card task-completed" style={{ alignItems: 'center' }}>
                                 <CheckCircle2 size={20} style={{ color: 'var(--color-emerald)', flexShrink: 0 }} />
                                 <div className="task-content">
                                     <div className="task-title done">{n.title}</div>
@@ -221,9 +280,9 @@ export default function Notifications() {
                                         {format(new Date(n.at), 'MMM dd, yyyy · hh:mm a')}
                                     </div>
                                 </div>
-                            </li>
+                            </div>
                         ))}
-                    </ul>
+                    </div>
                 </div>
             )}
         </div>

@@ -38,13 +38,12 @@
     <!-- Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Local Notifications (required for @capacitor/local-notifications) -->
+    <!-- Local Notifications -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Required on Android 13+ to post notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- Required to schedule exact alarms on Android 12+ -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- SCHEDULE_EXACT_ALARM intentionally omitted — uses inexact alarms instead.
+         Inexact alarms work without any user permission on all Android versions. -->
 
 </manifest>

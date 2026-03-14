@@ -1,6 +1,10 @@
 /**
  * Notification Service
- * Works on browser (Web Notification API) and Android (Capacitor LocalNotifications).
+ * - Android (Capacitor): @capacitor/local-notifications — real OS notifications
+ * - Browser: Web Notification API with setTimeout fallback
+ *
+ * Uses INEXACT alarms by default — no SCHEDULE_EXACT_ALARM permission needed.
+ * Fires within a few minutes of the scheduled time on Android 12+.
  */
 import { Capacitor } from '@capacitor/core';
 
@@ -36,34 +40,49 @@ export async function hasPermission() {
 
 /**
  * Schedule a one-time notification at a specific Date.
+ * Uses inexact scheduling — no special Android 12+ permission required.
+ * Notification fires within a few minutes of the target time.
+ *
  * @param {{ id: number, title: string, body: string, at: Date }} options
  */
 export async function scheduleAt({ id, title, body, at }) {
     const plugin = await getPlugin();
+
     if (plugin) {
+        const fireAt = at instanceof Date ? at : new Date(at);
+
         await plugin.schedule({
-            notifications: [{
-                id,
-                title,
-                body,
-                schedule: { at, allowWhileIdle: true },
-                sound: 'default',
-                actionTypeId: '',
-                extra: null,
-            }],
+            notifications: [
+                {
+                    id: Math.abs(Math.round(id)),
+                    title: String(title),
+                    body: String(body || title),
+                    schedule: {
+                        at: fireAt,
+                        // No allowWhileIdle — avoids SCHEDULE_EXACT_ALARM requirement on Android 12+
+                    },
+                    sound: 'default',
+                    actionTypeId: '',
+                    extra: null,
+                },
+            ],
         });
-        return true;
+        return;
     }
-    // Browser fallback: setTimeout
-    const delay = at.getTime() - Date.now();
-    if (delay > 0) {
-        setTimeout(() => {
-            if (Notification.permission === 'granted') {
-                new Notification(title, { body });
-            }
-        }, delay);
+
+    // Browser fallback — setTimeout
+    if (!('Notification' in window)) {
+        throw new Error('Notifications not supported in this browser.');
     }
-    return true;
+    const delay = (at instanceof Date ? at : new Date(at)).getTime() - Date.now();
+    if (delay <= 0) {
+        throw new Error('Scheduled time is in the past.');
+    }
+    setTimeout(() => {
+        if (Notification.permission === 'granted') {
+            new Notification(title, { body: body || title });
+        }
+    }, delay);
 }
 
 /**
@@ -72,6 +91,6 @@ export async function scheduleAt({ id, title, body, at }) {
 export async function cancelNotification(id) {
     const plugin = await getPlugin();
     if (plugin) {
-        await plugin.cancel({ notifications: [{ id }] });
+        await plugin.cancel({ notifications: [{ id: Math.abs(Math.round(id)) }] });
     }
 }
