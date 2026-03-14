@@ -56,6 +56,15 @@ export default function ProgressAnalytics({ refreshKey }) {
         setStreak(getTaskStreak());
         setTrend(getImprovementTrend());
         setInsights(getInsights());
+
+        // const sendData = new FormData();
+        // sendData.append(stats)
+        // sendData.append(progress)
+        // sendData.append(daily)
+        // sendData.append(weekly)
+        // sendData.append(streak)
+        // sendData.append(trend)
+        // sendData.append(insights)
     }, [refreshKey]);
 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
