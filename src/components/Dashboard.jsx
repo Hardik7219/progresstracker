@@ -6,14 +6,14 @@ import {
     getOldTaskCount,
     archiveOldTasks,
 } from '../services/storageService';
-import { getBasicStats, getProgressScore, getInsights } from '../services/analyticsService';
+import { getDashboardStats, getDashboardScore, getDashboardInsights } from '../services/analyticsService';
 import { getTaskStreak, getPhotoStreak } from '../services/streakService';
 import StreakCounter from './StreakCounter';
 import { CheckCircle2, Circle, Clock, TrendingUp, Camera, AlertTriangle } from 'lucide-react';
 import { format, isToday } from 'date-fns';
 
 export default function Dashboard({ onNavigate, refreshKey }) {
-    const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, completionPercentage: 0 });
+    const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, completionPercentage: 0, todayCompleted: 0 });
     const [progress, setProgress] = useState({ score: 0 });
     const [taskStreak, setTaskStreak] = useState({ current: 0, longest: 0 });
     const [photoStreak, setPhotoStreak] = useState({ current: 0, longest: 0 });
@@ -27,12 +27,14 @@ export default function Dashboard({ onNavigate, refreshKey }) {
     }, [refreshKey]);
 
     function refresh() {
-        setStats(getBasicStats());
-        setProgress(getProgressScore());
+        // Dashboard uses active-only stats and score
+        setStats(getDashboardStats());
+        setProgress(getDashboardScore());
         setTaskStreak(getTaskStreak());
         setPhotoStreak(getPhotoStreak());
-        setInsights(getInsights());
+        setInsights(getDashboardInsights());
 
+        // Today's tasks: active, not completed, relevant to today
         const tasks = getTasks();
         const today = tasks.filter(
             (t) =>
@@ -127,31 +129,19 @@ export default function Dashboard({ onNavigate, refreshKey }) {
                     {todayTasks.length === 0 ? (
                         <div className="empty-state">
                             <span className="empty-icon">✅</span>
-                            <p>No pending tasks for today!</p>
-                            <button className="btn-sm btn-primary" onClick={() => onNavigate('tasks')}>
-                                Add Task
-                            </button>
+                            <p>All caught up for today!</p>
                         </div>
                     ) : (
-                        <ul className="task-list-mini">
+                        <ul className="task-list">
                             {todayTasks.map((task) => (
-                                <li key={task.id} className="task-item-mini">
-                                    <button
-                                        className="task-check"
-                                        onClick={() => handleToggle(task)}
-                                    >
-                                        {task.completed ? (
-                                            <CheckCircle2 size={20} className="check-done" />
-                                        ) : (
-                                            <Circle size={20} className="check-pending" />
-                                        )}
+                                <li key={task.id} className={`task-item ${task.completed ? 'task-item--done' : ''}`}>
+                                    <button className="task-toggle" onClick={() => handleToggle(task)}>
+                                        {task.completed
+                                            ? <CheckCircle2 size={18} className="icon-done" />
+                                            : <Circle size={18} />}
                                     </button>
-                                    <div className="task-info">
-                                        <span className={`task-title ${task.completed ? 'done' : ''}`}>
-                                            {task.title}
-                                        </span>
-                                        <span className={`task-badge badge-${task.type}`}>{task.type}</span>
-                                    </div>
+                                    <span className="task-title">{task.title}</span>
+                                    <span className={`task-type-badge task-type-badge--${task.type}`}>{task.type}</span>
                                 </li>
                             ))}
                         </ul>
@@ -161,23 +151,16 @@ export default function Dashboard({ onNavigate, refreshKey }) {
                 {/* Insights */}
                 <div className="card insights-card">
                     <div className="card-header">
-                        <h2><TrendingUp size={18} /> Productivity Insights</h2>
+                        <h2>💡 Insights</h2>
                     </div>
-                    {insights.length === 0 ? (
-                        <div className="empty-state">
-                            <span className="empty-icon">💡</span>
-                            <p>Complete some tasks to see insights!</p>
-                        </div>
-                    ) : (
-                        <ul className="insights-list">
-                            {insights.map((insight, i) => (
-                                <li key={i} className={`insight-item insight-${insight.type}`}>
-                                    <span className="insight-icon">{insight.icon}</span>
-                                    <span className="insight-text">{insight.text}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                    <ul className="insights-list">
+                        {insights.map((insight, i) => (
+                            <li key={i} className={`insight-item insight-item--${insight.type}`}>
+                                <span className="insight-icon">{insight.icon}</span>
+                                <span className="insight-text">{insight.text}</span>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             </div>
         </div>

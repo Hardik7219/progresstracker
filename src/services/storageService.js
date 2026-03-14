@@ -1,14 +1,22 @@
 /**
  * Storage Service — localStorage-based CRUD for tasks, photos, settings.
- * Handles 30-day auto-archive logic.
+ *
+ * KEY DESIGN:
+ * - pt_tasks           → active tasks (daily/weekly reset each day, one-time until archived)
+ * - pt_archived_tasks  → tasks moved after 30 days (stamped with archived_date)
+ * - pt_completion_log  → permanent log of every completion event (task_id, task_title,
+ *                         task_type, completed_on). Never deleted automatically.
+ *                         This is the source of truth for all analytics history.
+ * - pt_photos          → photo journal entries
+ * - pt_settings        → user preferences
  */
 
 const KEYS = {
-    TASKS: 'pt_tasks',
-    PHOTOS: 'pt_photos',
+    TASKS:          'pt_tasks',
+    PHOTOS:         'pt_photos',
     ARCHIVED_TASKS: 'pt_archived_tasks',
-    SETTINGS: 'pt_settings',
-    STREAKS: 'pt_streaks',
+    COMPLETION_LOG: 'pt_completion_log',
+    SETTINGS:       'pt_settings',
 };
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -30,6 +38,34 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }
 
+// ─── Completion Log ─────────────────────────────────────────
+// A permanent append-only log of every completion event.
+// Each entry: { id, task_id, task_title, task_type, completed_on }
+// This survives task archiving, resets, and deletion.
+
+export function getCompletionLog() {
+    return read(KEYS.COMPLETION_LOG) || [];
+}
+
+function appendCompletionLog(task) {
+    const log = getCompletionLog();
+    // Avoid duplicate entries for the same task on the same day
+    const today = new Date().toISOString().split('T')[0];
+    const alreadyLogged = log.some(
+        (e) => e.task_id === task.id && e.completed_on.startsWith(today)
+    );
+    if (alreadyLogged) return;
+
+    log.push({
+        id: generateId(),
+        task_id:    task.id,
+        task_title: task.title,
+        task_type:  task.type,
+        completed_on: new Date().toISOString(),
+    });
+    write(KEYS.COMPLETION_LOG, log);
+}
+
 // ─── Tasks ──────────────────────────────────────────────────
 
 export function getTasks() {
@@ -44,26 +80,18 @@ export function addTask(task) {
     const tasks = getTasks();
     const newTask = {
         id: generateId(),
-        title: task.title,
+        title:       task.title,
         description: task.description || '',
-        type: task.type || 'one-time', // one-time | daily | weekly
-        created_date: new Date().toISOString(),
-        completed: false,
+        type:        task.type || 'one-time',
+        created_date:    new Date().toISOString(),
+        completed:       false,
         completion_date: null,
     };
     tasks.push(newTask);
     write(KEYS.TASKS, tasks);
     return newTask;
 }
-export function updatePhoto(id, newImage) {
-    const photos = getPhotos();
 
-    const updated = photos.map((p) =>
-        p.id === id ? { ...p, image_path: newImage } : p
-    );
-
-    localStorage.setItem("photos", JSON.stringify(updated));
-}
 export function updateTask(id, updates) {
     const tasks = getTasks();
     const idx = tasks.findIndex((t) => t.id === id);
@@ -79,63 +107,81 @@ export function deleteTask(id) {
 }
 
 export function completeTask(id) {
-    return updateTask(id, {
-        completed: true,
+    const task = getTask(id);
+    if (!task) return null;
+
+    const completedTask = {
+        ...task,
+        completed:       true,
         completion_date: new Date().toISOString(),
+    };
+
+    // Always write to completion log — preserves history even after removal
+    appendCompletionLog(completedTask);
+
+    if (task.type === 'one-time') {
+        // One-time tasks are done forever — remove from active list immediately.
+        // History is safe in the completion log.
+        deleteTask(id);
+        return completedTask;
+    }
+
+    // daily / weekly stay in the list so they can reset tomorrow
+    return updateTask(id, {
+        completed:       true,
+        completion_date: completedTask.completion_date,
     });
 }
+
+export function uncompleteTask(id) {
+    return updateTask(id, {
+        completed:       false,
+        completion_date: null,
+    });
+}
+
+/**
+ * Resets daily tasks that were completed yesterday back to pending.
+ * Resets weekly tasks completed in a previous week.
+ * Logs completions before resetting so history is never lost.
+ */
 export function resetDailyTasks() {
     const tasks = getTasks();
 
     const today = new Date();
-    today.setHours(0,0,0,0);
+    today.setHours(0, 0, 0, 0);
 
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    const archived = getArchivedTasks();
 
-    const updated = tasks.filter(task => {
+    const updated = tasks.map((task) => {
+        if (!task.completed || !task.completion_date) return task;
 
-        if (task.type !== "daily") return true;
+        const cd = new Date(task.completion_date);
+        cd.setHours(0, 0, 0, 0);
 
-        const created = new Date(task.created_date);
-        created.setHours(0,0,0,0);
-
-        const completed_date = task.completion_date 
-            ? new Date(task.completion_date) 
-            : null;
-
-        if (completed_date) {
-            completed_date.setHours(0,0,0,0);
+        if (task.type === 'daily' && cd.getTime() <= yesterday.getTime()) {
+            // Log it before wiping (in case completeTask wasn't used)
+            appendCompletionLog({ ...task, completion_date: task.completion_date });
+            return { ...task, completed: false, completion_date: null };
         }
 
-        console.log(completed_date, "vs", yesterday);
+        if (task.type === 'weekly') {
+            // Reset if completed in any previous week
+            const completedWeekStart = new Date(cd);
+            completedWeekStart.setDate(cd.getDate() - cd.getDay());
+            const currentWeekStart = new Date(today);
+            currentWeekStart.setDate(today.getDate() - today.getDay());
+            if (completedWeekStart < currentWeekStart) {
+                appendCompletionLog({ ...task, completion_date: task.completion_date });
+                return { ...task, completed: false, completion_date: null };
+            }
+        }
 
-        // reset if completed yesterday
-        if (
-            completed_date &&
-            completed_date.getTime() === yesterday.getTime() &&
-            task.type !== "one-time" &&
-            task.completed
-        ) {
-            task.completion_date = null;
-            task.completed = false;
-        }
-        if(completed_date && completed_date.getTime() === yesterday.getTime() && task.type == "one-time" && task.completed)
-        {
-            console.log(task)
-            write(KEYS.ARCHIVED_TASKS, [...archived, ...task]);
-        }
-        return true;
+        return task;
     });
 
     write(KEYS.TASKS, updated);
-}
-export function uncompleteTask(id) {
-    return updateTask(id, {
-        completed: false,
-        completion_date: null,
-    });
 }
 
 // ─── Task Filtering ─────────────────────────────────────────
@@ -163,16 +209,15 @@ export function archiveOldTasks() {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const toArchive = tasks.filter(
-        (t) => new Date(t.created_date) < thirtyDaysAgo
-    );
-    const toKeep = tasks.filter(
-        (t) => new Date(t.created_date) >= thirtyDaysAgo
-    );
+    const toArchive = tasks.filter((t) => new Date(t.created_date) < thirtyDaysAgo);
+    const toKeep    = tasks.filter((t) => new Date(t.created_date) >= thirtyDaysAgo);
 
     if (toArchive.length > 0) {
         const archived = getArchivedTasks();
-        write(KEYS.ARCHIVED_TASKS, [...archived, ...toArchive]);
+        write(KEYS.ARCHIVED_TASKS, [
+            ...archived,
+            ...toArchive.map((t) => ({ ...t, archived_date: new Date().toISOString() })),
+        ]);
         write(KEYS.TASKS, toKeep);
     }
 
@@ -181,13 +226,68 @@ export function archiveOldTasks() {
 
 export function clearArchivedTasks() {
     write(KEYS.ARCHIVED_TASKS, []);
+    // Note: completion log is NOT cleared here — history is preserved
 }
 
 export function getOldTaskCount() {
-    const tasks = getTasks();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return tasks.filter((t) => new Date(t.created_date) < thirtyDaysAgo).length;
+    return getTasks().filter((t) => new Date(t.created_date) < thirtyDaysAgo).length;
+}
+
+// ─── getAllTasksForAnalytics ─────────────────────────────────
+/**
+ * Returns a unified list of "completion events" for the analytics layer.
+ *
+ * Sources (in priority order, deduplicated by task_id + date):
+ *  1. Completion log  — permanent, covers daily/weekly history + archived one-time tasks
+ *  2. Active tasks    — currently completed tasks not yet in the log
+ *  3. Archived tasks  — completed one-time tasks moved to archive
+ *
+ * Each item is shaped like a task so analyticsService can use it directly.
+ * Items older than 60 days are excluded (enough for 30-day charts + buffer).
+ */
+export function getAllTasksForAnalytics() {
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+    // 1. Build synthetic task objects from the completion log
+    const log = getCompletionLog();
+    const logTasks = log
+        .filter((e) => new Date(e.completed_on) >= sixtyDaysAgo)
+        .map((e) => ({
+            id:              e.task_id + '_log_' + e.id,
+            title:           e.task_title,
+            type:            e.task_type,
+            completed:       true,
+            completion_date: e.completed_on,
+            created_date:    e.completed_on,
+            _from_log:       true,
+        }));
+
+    // 2. Active tasks that are currently completed (may not be in log yet)
+    const activeTasks = getTasks();
+
+    // 3. Archived tasks (completed one-time tasks)
+    const archivedTasks = getArchivedTasks()
+        .filter((t) => {
+            const ref = t.archived_date || t.created_date;
+            return new Date(ref) >= sixtyDaysAgo;
+        });
+
+    // Merge: use log as primary, supplement with active/archived
+    // Deduplicate: if a task_id + completion_date combo is already in log, skip it
+    const loggedKeys = new Set(
+        log.map((e) => e.task_id + '_' + e.completed_on.split('T')[0])
+    );
+
+    const supplemental = [...activeTasks, ...archivedTasks].filter((t) => {
+        if (!t.completed || !t.completion_date) return false;
+        const key = t.id + '_' + t.completion_date.split('T')[0];
+        return !loggedKeys.has(key);
+    });
+
+    return [...logTasks, ...supplemental];
 }
 
 // ─── Photos ─────────────────────────────────────────────────
@@ -199,8 +299,8 @@ export function getPhotos() {
 export function addPhoto(imagePath) {
     const photos = getPhotos();
     const newPhoto = {
-        id: generateId(),
-        image_path: imagePath,
+        id:            generateId(),
+        image_path:    imagePath,
         date_uploaded: new Date().toISOString(),
     };
     photos.push(newPhoto);
@@ -211,6 +311,15 @@ export function addPhoto(imagePath) {
 export function deletePhoto(id) {
     const photos = getPhotos().filter((p) => p.id !== id);
     write(KEYS.PHOTOS, photos);
+}
+
+export function updatePhoto(id, newImage) {
+    const photos = getPhotos();
+    const updated = photos.map((p) =>
+        p.id === id ? { ...p, image_path: newImage } : p
+    );
+    // BUG FIX: was localStorage.setItem("photos", ...) — wrong key
+    write(KEYS.PHOTOS, updated);
 }
 
 // ─── Settings ───────────────────────────────────────────────
@@ -228,10 +337,11 @@ export function updateSettings(updates) {
 
 export function getAllData() {
     return {
-        tasks: getTasks(),
-        archivedTasks: getArchivedTasks(),
-        photos: getPhotos(),
-        settings: getSettings(),
-        exportDate: new Date().toISOString(),
+        tasks:          getTasks(),
+        archivedTasks:  getArchivedTasks(),
+        completionLog:  getCompletionLog(),
+        photos:         getPhotos(),
+        settings:       getSettings(),
+        exportDate:     new Date().toISOString(),
     };
 }

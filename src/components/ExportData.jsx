@@ -10,6 +10,7 @@ import {
     clearArchivedTasks,
     archiveOldTasks,
     getOldTaskCount,
+    getCompletionLog,
 } from '../services/storageService';
 import {
     Download,
@@ -19,18 +20,21 @@ import {
     Archive,
     Trash2,
     AlertTriangle,
+    Info,
 } from 'lucide-react';
 
 export default function ExportData({ onRefresh }) {
-    const [archived] = useState(getArchivedTasks());
-    const [oldCount] = useState(getOldTaskCount());
+    const [archived, setArchived]   = useState(getArchivedTasks());
+    const [oldCount, setOldCount]   = useState(getOldTaskCount());
+    const [logCount]                = useState(getCompletionLog().length);
     const [exportDone, setExportDone] = useState('');
+    const [showClearWarning, setShowClearWarning] = useState(false);
 
     function handleExport(type) {
         try {
-            if (type === 'json') exportJSON();
-            else if (type === 'csv') exportCSV();
-            else if (type === 'pdf') exportPDF();
+            if (type === 'json')     exportJSON();
+            else if (type === 'csv')      exportCSV();
+            else if (type === 'pdf')      exportPDF();
             else if (type === 'archived') exportArchivedJSON();
             setExportDone(type);
             setTimeout(() => setExportDone(''), 3000);
@@ -41,14 +45,21 @@ export default function ExportData({ onRefresh }) {
 
     function handleArchiveAndClean() {
         archiveOldTasks();
+        setArchived(getArchivedTasks());
+        setOldCount(getOldTaskCount());
         onRefresh?.();
     }
 
     function handleClearArchive() {
-        if (window.confirm('Delete all archived tasks? This cannot be undone.')) {
-            clearArchivedTasks();
-            onRefresh?.();
-        }
+        // Show warning first — deleting archive removes task details but NOT completion log
+        setShowClearWarning(true);
+    }
+
+    function confirmClearArchive() {
+        clearArchivedTasks();
+        setArchived([]);
+        setShowClearWarning(false);
+        onRefresh?.();
     }
 
     return (
@@ -67,7 +78,7 @@ export default function ExportData({ onRefresh }) {
                         <FileJson size={32} />
                     </div>
                     <h3>Export JSON</h3>
-                    <p>Full data export including tasks, photos, and settings</p>
+                    <p>Full data export including tasks, completion log, photos, and settings</p>
                     {exportDone === 'json' && <span className="export-success">✓ Downloaded!</span>}
                 </div>
 
@@ -90,6 +101,25 @@ export default function ExportData({ onRefresh }) {
                 </div>
             </div>
 
+            {/* Completion Log Info */}
+            <div className="card archive-section">
+                <div className="card-header">
+                    <h2><Info size={18} /> Completion History</h2>
+                </div>
+                <div className="archive-info">
+                    <p>
+                        Your app keeps a <strong>permanent completion log</strong> of every task you've
+                        completed — including daily and weekly tasks that reset each day.
+                        This log is what powers your analytics charts and streaks.
+                        It is <strong>never automatically deleted</strong>.
+                    </p>
+                    <div className="archive-clean">
+                        <span>📋</span>
+                        <p><strong>{logCount}</strong> completion events logged across all time.</p>
+                    </div>
+                </div>
+            </div>
+
             {/* Archive Section */}
             <div className="card archive-section">
                 <div className="card-header">
@@ -98,7 +128,8 @@ export default function ExportData({ onRefresh }) {
                 <div className="archive-info">
                     <p>
                         Tasks older than <strong>30 days</strong> are automatically flagged for archiving.
-                        Export your data before cleaning up.
+                        Archiving removes them from your active task list but <strong>does not affect your
+                        analytics</strong> — completion history is always preserved in the log above.
                     </p>
 
                     {oldCount > 0 && (
@@ -138,6 +169,41 @@ export default function ExportData({ onRefresh }) {
                     )}
                 </div>
             </div>
+
+            {/* Clear Archive Warning Modal */}
+            {showClearWarning && (
+                <div className="modal-overlay" onClick={() => setShowClearWarning(false)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>⚠️ Delete Archived Tasks?</h2>
+                        </div>
+                        <div style={{ padding: '1rem 1.5rem' }}>
+                            <p style={{ marginBottom: '0.75rem' }}>
+                                This will permanently delete <strong>{archived.length} archived task(s)</strong> from storage.
+                            </p>
+                            <p style={{ marginBottom: '0.75rem', color: 'var(--color-success)' }}>
+                                ✅ <strong>Your analytics and streaks are safe.</strong> Completion history
+                                is stored in the permanent completion log and will not be affected.
+                            </p>
+                            <p style={{ color: 'var(--color-warning)' }}>
+                                ⚠️ Task titles and details in the archive will be lost. Export first if you need them.
+                            </p>
+                        </div>
+                        <div className="form-actions" style={{ padding: '0 1.5rem 1.5rem' }}>
+                            <button className="btn btn-ghost" onClick={() => setShowClearWarning(false)}>
+                                Cancel
+                            </button>
+                            <button className="btn btn-outline" onClick={() => handleExport('archived')}
+                                style={{ marginRight: 'auto' }}>
+                                <Download size={16} /> Export First
+                            </button>
+                            <button className="btn btn-danger-outline" onClick={confirmClearArchive}>
+                                <Trash2 size={16} /> Delete Anyway
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -6,7 +6,7 @@ import {
     deleteTask,
     completeTask,
     uncompleteTask,
-    resetDailyTasks
+    resetDailyTasks,
 } from '../services/storageService';
 import TaskForm from './TaskForm';
 import {
@@ -22,11 +22,12 @@ import { format } from 'date-fns';
 
 export default function TaskManager({ onRefresh }) {
     const [tasks, setTasks] = useState([]);
-    const [filter, setFilter] = useState('all'); // all | one-time | daily | weekly
+    const [filter, setFilter] = useState('all');       // all | one-time | daily | weekly
     const [statusFilter, setStatusFilter] = useState('all'); // all | pending | completed
     const [search, setSearch] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
+
     useEffect(() => {
         loadTasks();
     }, []);
@@ -55,11 +56,13 @@ export default function TaskManager({ onRefresh }) {
         deleteTask(id);
         loadTasks();
     }
+
     function handleToggle(task) {
         if (task.completed) {
             uncompleteTask(task.id);
         } else {
             completeTask(task.id);
+            // completeTask removes one-time tasks immediately — just reload
         }
         loadTasks();
     }
@@ -76,6 +79,10 @@ export default function TaskManager({ onRefresh }) {
 
     const filtered = tasks
         .filter((t) => {
+            // Hide completed one-time tasks — they are done and logged, no need to show them.
+            // (This is a safety net; completeTask already removes them, but old data may linger.)
+            if (t.type === 'one-time' && t.completed) return false;
+
             if (filter !== 'all' && t.type !== filter) return false;
             if (statusFilter === 'pending' && t.completed) return false;
             if (statusFilter === 'completed' && !t.completed) return false;
@@ -83,17 +90,23 @@ export default function TaskManager({ onRefresh }) {
             return true;
         })
         .sort((a, b) => {
-            // Pending first, then by date
+            // Pending first, then by newest created date
             if (a.completed !== b.completed) return a.completed ? 1 : -1;
             return new Date(b.created_date) - new Date(a.created_date);
         });
+
+    // For subtitle: don't count completed one-time tasks in totals (they're already gone)
+    const visibleTotal     = tasks.filter((t) => !(t.type === 'one-time' && t.completed)).length;
+    const visibleCompleted = tasks.filter((t) => t.completed && !(t.type === 'one-time')).length;
 
     return (
         <div className="task-manager">
             <div className="page-header">
                 <div>
                     <h1>Tasks</h1>
-                    <p className="subtitle">{tasks.length} total · {tasks.filter((t) => t.completed).length} completed</p>
+                    <p className="subtitle">
+                        {visibleTotal} total · {visibleCompleted} completed
+                    </p>
                 </div>
                 <button className="btn btn-primary" onClick={openAdd}>
                     <Plus size={18} /> Add Task
@@ -168,7 +181,7 @@ export default function TaskManager({ onRefresh }) {
                             </button>
                             <div className="task-content">
                                 <div className="task-title-row gap-2">
-                                    <span className={`task-title ${task.completed ? 'done' : ''} text-sm lg:text-lg`}>
+                                    <span className={`task-title ${task.completed ? 'done' : ''}`}>
                                         {task.title}
                                     </span>
                                     <span className={`task-badge badge-${task.type}`}>{task.type}</span>
@@ -178,7 +191,7 @@ export default function TaskManager({ onRefresh }) {
                                 )}
                                 <div className="task-meta">
                                     <span>Created {format(new Date(task.created_date), 'MMM dd, yyyy')}</span>
-                                    {task.completion_date && (
+                                    {task.completed && task.completion_date && (
                                         <span className="task-completed-date">
                                             ✓ Completed {format(new Date(task.completion_date), 'MMM dd, yyyy')}
                                         </span>
@@ -186,10 +199,20 @@ export default function TaskManager({ onRefresh }) {
                                 </div>
                             </div>
                             <div className="task-actions">
-                                <button className="btn-icon" onClick={() => openEdit(task)} title="Edit">
-                                    <Edit3 size={16} />
-                                </button>
-                                <button className="btn-icon btn-danger" onClick={() => handleDelete(task.id)} title="Delete">
+                                {!task.completed && (
+                                    <button
+                                        className="btn-icon"
+                                        onClick={() => openEdit(task)}
+                                        title="Edit"
+                                    >
+                                        <Edit3 size={16} />
+                                    </button>
+                                )}
+                                <button
+                                    className="btn-icon btn-danger"
+                                    onClick={() => handleDelete(task.id)}
+                                    title="Delete"
+                                >
                                     <Trash2 size={16} />
                                 </button>
                             </div>
@@ -198,15 +221,12 @@ export default function TaskManager({ onRefresh }) {
                 </div>
             )}
 
-            {/* Modal */}
+            {/* Task Form Modal */}
             {showForm && (
                 <TaskForm
                     task={editingTask}
                     onSubmit={editingTask ? handleEdit : handleAdd}
-                    onClose={() => {
-                        setShowForm(false);
-                        setEditingTask(null);
-                    }}
+                    onClose={() => { setShowForm(false); setEditingTask(null); }}
                 />
             )}
         </div>
