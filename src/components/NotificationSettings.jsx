@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Plus, Trash2, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
-import { requestPermission, scheduleAt, cancelNotification ,createChannel } from '../services/notificationService';
 import { format } from 'date-fns';
-
+import {scheduleAt , requestPermission , createChannel}  from '../services/notificationService'
 const STORAGE_KEY = 'pt_scheduled_notifications';
 
 function loadNotifications() {
@@ -17,18 +16,6 @@ function generateId() {
     return Math.floor(Math.random() * 2000000) + 1;
 }
 
-// Check permission directly from plugin, handling Capacitor 6 bug
-async function checkNativePermission() {
-    const platform = Capacitor.getPlatform();
-    if (platform === 'android' || platform === 'ios') {
-        const { LocalNotifications } = await import('@capacitor/local-notifications');
-        const result = await LocalNotifications.checkPermissions();
-        // Capacitor 6 bug: returns 'prompt' even when OS shows it as granted
-        // Consider both 'granted' and absence of 'denied' as potentially OK
-        return result.display !== 'denied';
-    }
-    return 'Notification' in window && Notification.permission === 'granted';
-}
 
 export default function Notifications() {
     const [notifications, setNotifications] = useState([]);
@@ -46,53 +33,13 @@ export default function Notifications() {
     }
 
     useEffect(() => {
-        setNotifications(loadNotifications());
-
         async function init() {
-            await createChannel();   // ensure channel exists
-            const granted = await checkNativePermission();
-            setPermGranted(granted);
-            log(`Platform: ${Capacitor.getPlatform()} | Permission check: ${granted}`);
-        }
-
-        init();
+        await requestPermission();
+        await createChannel();
+        setNotifications(loadNotifications());
+    }
+    init();
     }, []);
-
-    async function handleRequestPermission() {
-        setError('');
-        log('Requesting permission...');
-        try {
-            const granted = await requestPermission();
-            // Also recheck native state
-            const nativeGranted = await checkNativePermission();
-            const finalGranted = granted || nativeGranted;
-            setPermGranted(finalGranted);
-            log(`Result: granted=${granted} nativeCheck=${nativeGranted}`);
-            if (!finalGranted) {
-                setError('Still denied. Go to: Settings → Apps → Progress Tracker → Notifications → Allow');
-            }
-        } catch (err) {
-            log(`Error: ${err?.message}`);
-            setError(`Error: ${err?.message}`);
-        }
-    }
-
-    async function handleTestNow() {
-        setError(''); setSuccess('');
-        log('Scheduling test in 5 seconds...');
-        try {
-            // Try to schedule directly — if permission is really denied it will throw
-            const fireAt = new Date(Date.now() + 5000);
-            await scheduleAt({ id: 9999999, title: '🔔 Test Notification', body: 'It works!', at: fireAt });
-            setPermGranted(true); // if schedule succeeded, permission is clearly granted
-            log('Test scheduled ✓ — lock your screen!');
-            setSuccess('✅ Test fires in 5 seconds. Lock your screen to see it!');
-            setTimeout(() => setSuccess(''), 10000);
-        } catch (err) {
-            log(`Failed: ${err?.message}`);
-            setError(`Test failed: ${err?.message}`);
-        }
-    }
 
     async function handleSchedule(e) {
         e.preventDefault();
@@ -159,35 +106,6 @@ export default function Notifications() {
                     <p className="subtitle">Schedule reminders by title and time</p>
                 </div>
             </div>
-
-            {/* Permission banner — only show if definitively denied */}
-            {!permGranted && (
-                <div className="archive-banner" style={{ marginBottom: '1rem' }}>
-                    <AlertTriangle size={18} />
-                    <span>Tap Allow or enable in device Settings.</span>
-                    <button className="btn-sm btn-primary" onClick={handleRequestPermission}>Allow</button>
-                </div>
-            )}
-
-            {/* Test button — always visible */}
-            <div className="card" style={{ marginBottom: '1rem', padding: '1rem 1.5rem' }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'0.5rem', flexWrap:'wrap' }}>
-                    <div>
-                        <div style={{ fontWeight:600 }}>🧪 Test (5 seconds)</div>
-                        <div style={{ fontSize:'0.8rem', color:'var(--color-text-muted)' }}>
-                            Tap then lock your screen — notification appears there
-                        </div>
-                    </div>
-                    <button className="btn btn-outline" onClick={handleTestNow}>Send Test</button>
-                </div>
-            </div>
-
-            {/* Debug log */}
-            {debugLog.length > 0 && (
-                <div style={{ background:'var(--color-bg-input)', border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', padding:'0.75rem 1rem', marginBottom:'1rem', fontFamily:'monospace', fontSize:'0.75rem', color:'var(--color-text-muted)' }}>
-                    {debugLog.map((l,i) => <div key={i}>{l}</div>)}
-                </div>
-            )}
 
             {/* Schedule form */}
             <div className="card" style={{ marginBottom: '1.5rem' }}>
