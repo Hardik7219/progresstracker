@@ -9,10 +9,11 @@ export async function requestPermission() {
 
 export async function createChannel() {
     await LocalNotifications.createChannel({
-        id: "progress_reminders",
+        id: "progress_reminders_v2",
         name: "Progress Reminders",
         description: "Task reminder notifications",
-        importance: 4
+        importance: 4,
+        sound: "notify_sound.wav"
     });
 }
 export async function scheduleAt({ id, title, body, at }) {
@@ -24,8 +25,8 @@ export async function scheduleAt({ id, title, body, at }) {
                 title: String(title),
                 body: String(body || title),
                 schedule: { at: fireAt },
-                channelId: "progress_reminders",
-                sound: null,
+                channelId: "progress_reminders_v2",
+                sound: "notify_sound.wav",
                 actionTypeId: '',
                 extra: null,
             }],
