@@ -1486,6 +1486,10 @@ cursor:pointer;
   flex-wrap: wrap;
 }
 
+.p{
+  padding: 2px;
+}
+
 /* ─── Animations ───────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; }

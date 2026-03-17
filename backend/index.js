@@ -5,6 +5,7 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken')
 const cookies = require('cookie-parser')
+const analys= require('./models/analys.Model')
 
 app.use(cookies())
 app.use(cors({
@@ -89,20 +90,18 @@ app.post('/login', async (req, res) => {
             });
         }
 
-        // ✅ DO NOT store password
         const token = jwt.sign(
             { id: findUser._id, email: findUser.email },
-            "secret",
-            { expiresIn: "1h" }
-        );
+            "secret");
 
-        // ✅ Secure cookie
         res.cookie("token", token, {
             httpOnly: true,
-            secure: false, // true in production (HTTPS)
-            sameSite: "lax"
+            sameSite:"none",
+            secure: false,
+            sameSite: "lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000 
         });
-
+        
         res.status(200).json({
             success: true,
             message: "Login successful"
@@ -132,10 +131,104 @@ function auth(req, res, next) {
         return res.status(403).json({ message: "Invalid token" });
     }
 }
-app.get('/dashboard', auth, (req, res) => {
-    res.json({
-        message: "Welcome",
-        user: req.user
-    });
+
+app.get('/me' , async (req,res)=>{
+    const token = req.cookies.token;    
+    if (!token) return res.status(401).json({
+    success: false,
+    message: "Unauthorized"
+});
+
+    try {
+        const decoded = jwt.verify(token, "secret");
+
+        res.json({
+            id: decoded.id,
+            email: decoded.email
+        });
+        console.log(id," sdd",decoded.id)
+    } catch {
+        return res.status(401).json({
+                success: false,
+                message:'server error'
+            });
+    }
+})
+
+app.post('/friend', async (req,res)=>{
+    const {frd,_id} = req.body;
+    if(!frd || !_id) 
+    {
+        return res.status(404).json({
+            success: false,
+            message: "User not found"
+        });
+    }
+    try {
+        const user = await users.findOne({_id:id})
+        if(!user) return res.status(200).json({
+                success: false,
+                message: "user not found"
+            });;
+        const partner = await users.findOne({userName:frd})
+        if(!partner) return res.status(401).json({ message: "No User found" });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Server error"
+        });
+    }
+})
+
+app.post('/analys', async (req, res) => {
+    const { 
+        basicStats, 
+        user: id, 
+        progressScore, 
+        dailyTreads, 
+        weeklyTreads, 
+        improveTread,
+    } = req.body;   
+
+    if (!id) {
+        return res.status(400).json({
+            success: false,
+            message: "User ID missing"
+        });
+    }
+
+    try {
+        const user = await users.findById(id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+    const analysM = await analys.findOneAndUpdate(
+        { userId : id }, 
+        { basicStats, progressScore, dailyTreads, weeklyTreads, improveTread, userId: id, createdAt: new Date() },
+        { upsert: true, returnDocument: 'after' }
+    );
+
+        if(!user.analys) user.analys = [];
+        if(!user.analys.includes(analysM._id)) {
+            user.analys.push(analysM._id);
+            await user.save();
+        }
+        res.status(200).json({
+            success: true,
+            message: "Analytics updated successfully"
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: "Server error"
+        });
+    }
 });
 app.listen(4000)
