@@ -33,9 +33,9 @@ app.post('/create', async (req, res) => {
     else
     {
     try {
+            const salt = await bcrypt.genSalt(10);
+            const hash = await bcrypt.hash(password, salt);
 
-            const hashpass= bcrypt.genSalt(10,(err,salt)=>{
-                bcrypt.hash(password,salt, async (err,hash)=>{
                     const user = await users.create({
                         userName,
                         email,
@@ -47,9 +47,6 @@ app.post('/create', async (req, res) => {
                         message: "User created successfully",
                         user
                     });
-                })
-            })
-            
             
         } catch (error) {
             console.error(error);
@@ -92,7 +89,7 @@ app.post('/login', async (req, res) => {
 
         const token = jwt.sign(
             { id: findUser._id, email: findUser.email },
-            "secret");
+            "secret",{expiresIn : '7d'});
 
         res.cookie("token", token, {
             httpOnly: true,
@@ -116,23 +113,8 @@ app.post('/login', async (req, res) => {
     }
 });
 
-function auth(req, res, next) {
-    const token = req.cookies.token;
 
-    if (!token) {
-        return res.status(401).json({ message: "No token" });
-    }
-
-    try {
-        const decoded = jwt.verify(token, "secret");
-        req.user = decoded;
-        next();
-    } catch (err) {
-        return res.status(403).json({ message: "Invalid token" });
-    }
-}
-
-app.get('/me' , async (req,res)=>{
+app.get('/me', async (req,res)=>{
     const token = req.cookies.token;    
     if (!token) return res.status(401).json({
     success: false,
@@ -146,7 +128,6 @@ app.get('/me' , async (req,res)=>{
             id: decoded.id,
             email: decoded.email
         });
-        console.log(id," sdd",decoded.id)
     } catch {
         return res.status(401).json({
                 success: false,
@@ -214,10 +195,9 @@ app.post('/analys', async (req, res) => {
     );
 
         if(!user.analys) user.analys = [];
-        if(!user.analys.includes(analysM._id)) {
-            user.analys.push(analysM._id);
-            await user.save();
-        }
+        await users.findByIdAndUpdate(id, {
+            $addToSet: { analys: analysM._id }
+        });
         res.status(200).json({
             success: true,
             message: "Analytics updated successfully"
