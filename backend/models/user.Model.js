@@ -3,9 +3,20 @@ const mongoose = require('mongoose')
 mongoose.connect('mongodb://admin:hardik7219@localhost:27017/my?authSource=admin')
 
 const userSchema = mongoose.Schema({
-    userName: String,
-    email: String,
+    userName: {
+        type:String,
+        unique: true 
+    },
+    email: {
+        type:String,
+        unique: true 
+    },
+    isVerified: { type: Boolean, default: false },
+    verifyToken: String,
     password: String,
+    resetToken: String,
+    resetTokenExpiry: Date,
+    avatar : String,
     partner: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
     analys: [{ type: mongoose.Schema.Types.ObjectId, ref: 'analys' }]
 })
