@@ -10,8 +10,9 @@ function FriendData({refreshKey}) {
     const [msg,setMsg] = useState('')
     const [login,setLogin] = useState(false)
     const [frd,setFrd]= useState();
+    const url = import.meta.env.VITE_API_URL
     useEffect(() => {
-      fetch("http://localhost:4000/me", {
+      fetch(`${url}/me`, {
           credentials: "include"
       })
       .then(res => res.json())
@@ -31,7 +32,7 @@ function FriendData({refreshKey}) {
     e.preventDefault();
 
     try {
-      const res = await fetch('http://localhost:4000/create', {
+      const res = await fetch(`${url}/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName, email, password })
@@ -49,7 +50,7 @@ function FriendData({refreshKey}) {
 
     const loginUser = async (e) => {
       e.preventDefault();
-      const res = await fetch('http://localhost:4000/login',{
+      const res = await fetch(`${url}/login`,{
           method:'POST',
           credentials: "include",
           headers : {'Content-Type': 'application/json'},
@@ -59,18 +60,18 @@ function FriendData({refreshKey}) {
       setMsg(data.message); 
   }
   const logout = async () => {
-      await fetch('http://localhost:4000/logout', {
+      await fetch(`${url}/logout`, {
           method: 'POST',
           credentials: 'include'
       });
       setData(null);
   }
     const sendRequest = async ()=>{
-        const res = await fetch('http://localhost:4000/friend',{
+        const res = await fetch(`${url}/friend`,{
           method : 'POST',
           credentials: 'include', 
           headers : {'Content-Type': 'application/json'},
-          body : JSON.stringify({frd, _id : data.id})
+          body : JSON.stringify({frd, id : data.id})
         })
     }
   return (

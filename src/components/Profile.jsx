@@ -15,8 +15,10 @@ function Profile({refreshKey}) {
     const [frd,setFrd]= useState();
     const [showForgetm,setShowForget]= useState(false)
     const [forgetEmail,setForgetEmail] = useState('') 
+    const url = import.meta.env.VITE_API_URL
+
     useEffect(() => {
-      fetch("http://localhost:4000/me", {
+      fetch(`${url}/me`, {
           credentials: "include"
       })
       .then(res => res.json())
@@ -38,7 +40,7 @@ function Profile({refreshKey}) {
     e.preventDefault();
 
     try {
-      const res = await fetch('http://localhost:4000/create', {
+      const res = await fetch(`${url}/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName, email, password })
@@ -56,7 +58,7 @@ function Profile({refreshKey}) {
 
     const loginUser = async (e) => {
       e.preventDefault();
-      const res = await fetch('http://localhost:4000/login',{
+      const res = await fetch(`${url}/login`,{
           method:'POST',
           credentials: "include",
           headers : {'Content-Type': 'application/json'},
@@ -66,14 +68,14 @@ function Profile({refreshKey}) {
       setMsg(data.message); 
   }
   const logout = async () => {
-      await fetch('http://localhost:4000/logout', {
+      await fetch(`${url}/logout`, {
           method: 'POST',
           credentials: 'include'
       });
       setData(null);
   }
     const sendRequest = async ()=>{
-        const res = await fetch('http://localhost:4000/friend',{
+        const res = await fetch(`${url}/friend`,{
           method : 'POST',
           credentials: 'include', 
           headers : {'Content-Type': 'application/json'},
@@ -84,7 +86,7 @@ function Profile({refreshKey}) {
     }
       const forgetPass = async (e) => {
         e.preventDefault()
-      const res = await fetch('http://localhost:4000/forgot-password',{
+      const res = await fetch(`${url}/forgot-password`,{
           method : 'POST',
           credentials: 'include', 
           headers : {'Content-Type': 'application/json'},

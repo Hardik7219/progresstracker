@@ -65,13 +65,13 @@ export async function sendData(id) {
     }
 
     try {
-        const res = await fetch('http://localhost:4000/analys', {
+        const res =  await fetch(`${import.meta.env.VITE_API_URL}/analys`, {
             method: 'POST',
             credentials: 'include', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)
         });
-
+        
         if (!res.ok) throw new Error("Failed");
 
         localStorage.setItem('lastAnalyticsHash', newHash); 

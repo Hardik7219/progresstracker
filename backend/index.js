@@ -10,13 +10,17 @@ const analys= require('./models/analys.Model')
 const validator = require('validator');
 const crypto = require('crypto');
 const mailer = require('./mailer');
+const port = process.env.PORT || 4000 
 
 app.use(cookies())
 app.use(cors({
-    origin: "http://localhost:5173", // your React app
+    origin: [
+        "http://localhost:5173",     // Vite dev server
+        "app://.",                   // Electron production (file protocol)
+        "http://localhost:3000",     // fallback
+    ],
     credentials: true
 }));
-
 app.use(express.json())
 app.use(express.urlencoded({extended: true}))
 
@@ -55,27 +59,34 @@ app.post('/create', async (req, res) => {
         });
         const baseURL = process.env.BASE_URL || "http://localhost:4000";
         // Send verification email
-        await mailer.sendMail({
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Verify your email',
-            html: `
-                <div style="font-family: Arial; text-align: center;">
-                    <h2>Verify Your Email</h2>
-                    <p>Click the button below to verify your account:</p>
-                    <a href="${baseURL}/verify/${verifyToken}" 
-                    style="padding:10px 20px; background:#4CAF50; color:white; text-decoration:none; border-radius:5px;">
-                    Verify Email
-                    </a>
-                    <p>If you didn’t request this, ignore this email.</p>
-                </div>
-            `
-        });
+        try
+        {
 
-        res.json({ success: true, message: "Check your email to verify your account" });
+            await mailer.sendMail({
+                from: process.env.EMAIL_USER,
+                to: email,
+                subject: 'Verify your email',
+                html: `
+                <div style="font-family: Arial; text-align: center;">
+                <h2>Verify Your Email</h2>
+                <p>Click the button below to verify your account:</p>
+                <a href="${baseURL}/verify/${verifyToken}" 
+                style="padding:10px 20px; background:#4CAF50; color:white; text-decoration:none; border-radius:5px;">
+                Verify Email
+                </a>
+                <p>If you didn’t request this, ignore this email.</p>
+                </div>
+                `
+            });
+            
+            res.json({ success: true, message: "Check your email to verify your account" });
+        }
+        catch(error)
+        {
+            res.json({message:"cant send the email"})
+        }
 
     } catch (error) {
-        console.error(error);
         res.status(500).json({ message: "Error creating user" });
     }
 });
@@ -125,7 +136,7 @@ app.post('/login', async (req, res) => {
 
         const token = jwt.sign(
             { id: findUser._id, username : findUser.userName ,email: findUser.email},
-            "secret",{expiresIn : '7d'});
+            process.env.JWT_SECRET,{expiresIn : '7d'});
 
         res.cookie("token", token, {
             httpOnly: true,
@@ -160,7 +171,7 @@ app.get('/me', async (req,res)=>{
 });
 
     try {
-        const decoded = jwt.verify(token, "secret");
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         res.json({
             id: decoded.id,
@@ -297,4 +308,4 @@ app.post('/reset-password/:token', async (req, res) => {
 
     res.json({ success: true, message: "Password reset successfully. You can now log in." });
 });
-app.listen(4000)
+app.listen(port)
