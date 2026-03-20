@@ -1,17 +1,13 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> main
 import { Capacitor } from '@capacitor/core';
 
 // ✅ Remove the top-level LocalNotifications import — it conflicts with dynamic import
 
-async function getPlugin() {
-    const platform = Capacitor.getPlatform();
-    if (platform === 'android' || platform === 'ios') {
-        const { LocalNotifications } = await import('@capacitor/local-notifications');
-        return LocalNotifications;
-    }
-    return null;
-}
-
 export async function requestPermission() {
+<<<<<<< HEAD
     const plugin = await getPlugin();
     // ✅ Removed undefined log('hello') call
     if (plugin) {
@@ -47,29 +43,43 @@ export async function createChannel() {
         name: "Progress Reminders",
         description: "Task reminder notifications",
         importance: 5  // ✅ Changed from 4 to 5 (IMPORTANCE_HIGH) — shows as heads-up
+=======
+  const permission = await LocalNotifications.requestPermissions();
+  return permission.display === 'granted';
+}
+
+export async function createChannel() {
+    await LocalNotifications.createChannel({
+        id: "progress_reminders_v2",
+        name: "Progress Reminders",
+        description: "Task reminder notifications",
+        importance: 4,
+        sound: "notify_sound.wav"
+>>>>>>> main
     });
 }
 
 export async function scheduleAt({ id, title, body, at }) {
-    const plugin = await getPlugin();
     const fireAt = at instanceof Date ? at : new Date(at);
-
-    if (plugin) {
-        await plugin.schedule({
+    console.log(title)
+        await LocalNotifications.schedule({
             notifications: [{
                 id: Math.abs(Math.round(id)),
                 title: String(title),
                 body: String(body || title),
+<<<<<<< HEAD
                 schedule: { at: fireAt, allowWhileIdle: true }, // ✅ Added allowWhileIdle
                 channelId: "progress_reminders",
                 sound: null,
+=======
+                schedule: { at: fireAt },
+                channelId: "progress_reminders_v2",
+                sound: "notify_sound.wav",
+>>>>>>> main
                 actionTypeId: '',
                 extra: null,
             }],
         });
-        return;
-    }
-
     const delay = fireAt.getTime() - Date.now();
     if (delay <= 0) throw new Error('Time is in the past.');
     setTimeout(() => {
@@ -77,11 +87,16 @@ export async function scheduleAt({ id, title, body, at }) {
             new Notification(title, { body: body || title });
         }
     }, delay);
+      if (Capacitor.getPlatform() === "web") {
+    const delay = fireAt.getTime() - Date.now();
+    if (delay > 0 && Notification.permission === 'granted') {
+      setTimeout(() => {
+        new Notification(title, { body: body || title });
+      }, delay);
+    }
+  }
 }
 
 export async function cancelNotification(id) {
-    const plugin = await getPlugin();
-    if (plugin) {
-        await plugin.cancel({ notifications: [{ id: Math.abs(Math.round(id)) }] });
-    }
+        await LocalNotifications.cancel({ notifications: [{ id: Math.abs(Math.round(id)) }] });
 }

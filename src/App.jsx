@@ -8,7 +8,7 @@ import ExportData from './components/ExportData';
 import ThemeToggle from './components/ThemeToggle';
 import FriendData from './components/FriendData';
 import Notification from './components/NotificationSettings';
-
+import Profile from './components/Profile';
 import { getSettings, updateSettings } from './services/storageService';
 
 export default function App() {
@@ -48,6 +48,8 @@ export default function App() {
                 return <ProgressAnalytics refreshKey={refreshKey} />;
             case 'friend' :
                 return <FriendData refreshKey={refreshKey}></FriendData>
+            case 'profile' :
+                return <Profile refreshKey={refreshKey}></Profile>
             case 'notification' : 
                 return <Notification refreshKey={refreshKey}></Notification>
             case 'photos':

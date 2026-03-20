@@ -22,7 +22,6 @@ import {
     differenceInCalendarDays,
 } from 'date-fns';
 
-
 // ═══════════════════════════════════════════════════════════
 //  DASHBOARD SCOPE — active tasks only, today-focused
 // ═══════════════════════════════════════════════════════════
@@ -38,7 +37,51 @@ export function getDashboardStats() {
 
     return { total, completed: completedCount, pending: total - completedCount, completionPercentage, todayCompleted };
 }
+function generateHash(data) {
+    return JSON.stringify(data);
+}
+export async function sendData(id) {
+    const basicStats = getBasicStats();
+    const progressScore = getProgressScore();
+    const dailyTreads = getDailyTrends();
+    const weeklyTreads = getWeeklyTrends();
+    const improveTread = getImprovementTrend();
 
+    const formData = {
+        user: id,
+        basicStats,
+        progressScore,
+        dailyTreads,
+        weeklyTreads,
+        improveTread
+    };
+
+    const newHash = generateHash(formData);
+    const oldHash = localStorage.getItem('lastAnalyticsHash');
+
+    if (newHash === oldHash) {
+        console.log(" No changes, skipping sync");
+        return;
+    }
+
+    try {
+        const res =  await fetch(`${import.meta.env.VITE_API_URL}/analys`, {
+            method: 'POST',
+            credentials: 'include', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        if (!res.ok) throw new Error("Failed");
+
+        localStorage.setItem('lastAnalyticsHash', newHash); 
+
+        console.log(" Synced successfully");
+
+    } catch (err) {
+        console.error(" Sync failed:", err);
+    }
+}
 export function getDashboardScore() {
     const stats = getDashboardStats();
     const streak = getTaskStreak();

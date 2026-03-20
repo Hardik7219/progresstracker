@@ -7,7 +7,8 @@ import {
     Download,
     Flame,
     Hand,
-    Bell
+    Bell,
+    User
 } from 'lucide-react';
 
 const navItems = [
@@ -18,6 +19,7 @@ const navItems = [
     {id:'notification', label: 'Notification' , icon : Bell},
     { id: 'photos', label: 'Photo Journal', icon: Camera },
     { id: 'export', label: 'Export', icon: Download },
+    {id:'profile', label: 'Profile', icon : User}
 ];
 
 export default function Sidebar({
