@@ -59,38 +59,38 @@ app.post('/create', async (req, res) => {
         });
         const baseURL = process.env.BASE_URL || "http://localhost:4000";
         // Send verification email
-        try
-        {
 
-            await mailer.sendMail({
-                from: process.env.EMAIL_USER,
-                to: email,
-                subject: 'Verify your email',
-                html: `
-                <div style="font-family: Arial; text-align: center;">
-                <h2>Verify Your Email</h2>
-                <p>Click the button below to verify your account:</p>
-                <a href="${baseURL}/verify/${verifyToken}" 
-                style="padding:10px 20px; background:#4CAF50; color:white; text-decoration:none; border-radius:5px;">
-                Verify Email
-                </a>
-                <p>If you didn’t request this, ignore this email.</p>
-                </div>
-                `
-            });
+            sendVerificationEmail(email, verifyToken, baseURL);
             
-            res.json({ success: true, message: "Check your email to verify your account" });
-        }
-        catch(error)
-        {
-            res.json({message:"cant send the email"})
-        }
+            return res.json({ success: true, message: "Check your email to verify your account" });
 
     } catch (error) {
         res.status(500).json({ message: "Error creating user" });
     }
 });
 
+app.post('/varify' , async (req,res)=>{
+    const {email} = req.body
+    try {
+        const user = await users.findOne({email:email})
+        if(!user) return res.json({message:'user not found'})
+        if(user.isVerified==true) return res.json({message:'already varified'})
+        
+        const verifyToken = crypto.randomBytes(32).toString('hex');
+        user.verifyToken= verifyToken
+        await user.save();
+        const baseURL = process.env.BASE_URL || "http://localhost:4000";
+        // Send verification email
+
+            sendVerificationEmail(email, verifyToken, baseURL);
+            return res.json({ success: true, message: "Check your email to verify your account" });
+
+    } catch (error) {
+        console.log(error)
+        return res.json({message : 'can not varify yet'})
+    }
+
+})
 app.get('/verify/:token', async (req, res) => {
     const user = await users.findOne({ verifyToken: req.params.token });
 
@@ -103,6 +103,27 @@ app.get('/verify/:token', async (req, res) => {
 
     res.json({ success: true, message: "Email verified! You can now log in." });
 });
+
+async function sendVerificationEmail(email, token, baseURL) {
+    try {
+        await mailer.sendMail({
+            to: email,
+            subject: 'Welcome — verify your email',
+            html: `
+            <div style="font-family: Arial; text-align: center;">
+                <h2>Welcome!</h2>
+                <p>Your account is active. Optionally verify your email:</p>
+                <a href="${baseURL}/verify/${token}"
+                style="padding:10px 20px; background:#4CAF50; color:white; text-decoration:none; border-radius:5px;">
+                Verify Email
+                </a>
+            </div>`,
+        });
+    } catch (err) {
+        // Already handled inside mailer.js but catch here too just in case
+        console.error('Verification email failed (non-fatal):', err.message);
+    }
+}
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
@@ -186,32 +207,6 @@ app.get('/me', async (req,res)=>{
     }
 })
 
-app.post('/friend', async (req,res)=>{
-    const {frd,_id} = req.body;
-    if(!frd || !_id) 
-    {
-        return res.status(404).json({
-            success: false,
-            message: "User not found"
-        });
-    }
-    try {
-        const user = await users.findOne({_id:id})
-        if(!user) return res.status(200).json({
-                success: false,
-                message: "user not found"
-            });;
-        const partner = await users.findOne({userName:frd})
-        if(!partner) return res.status(401).json({ message: "No User found" });
-        
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Server error"
-        });
-    }
-})
-
 app.post('/analys', async (req, res) => {
     const { 
         basicStats, 
@@ -263,49 +258,61 @@ app.post('/analys', async (req, res) => {
 });
 app.post('/forgot-password', async (req, res) => {
     const { email  } = req.body;
+    try
+    {
 
-    const user = await users.findOne({ email:email });
-
-    // Always return the same message — don't reveal if email exists or not
-    if (!user) {
-        return res.json({ message: "If that email exists, a reset link has been sent" });
-    }
-
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = Date.now() + 1000 * 60 * 60; // 1 hour
-    await user.save();
-    const baseURL = process.env.BASE_URL || "http://localhost:4000";
-
-    await mailer.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Reset your password',
-        html: `<p>Click to reset your password (link expires in 1 hour):</p>
+        const user = await users.findOne({ email:email });
+        
+        // Always return the same message — don't reveal if email exists or not
+        if (!user) {
+            return res.json({ message: "If that email exists, a reset link has been sent" });
+        }
+        
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        user.resetToken = resetToken;
+        user.resetTokenExpiry = Date.now() + 1000 * 60 * 60; // 1 hour
+        await user.save();
+        const baseURL = process.env.BASE_URL || "http://localhost:4000";
+        
+        await mailer.sendMail({
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'Reset your password',
+            html: `<p>Click to reset your password (link expires in 1 hour):</p>
             <a href="${baseURL}/reset-password/${resetToken}">Reset Password</a>`
-    });
-
-    res.json({ message: "If that email exists, a reset link has been sent" });
+        });
+        
+        res.json({ message: "If that email exists, a reset link has been sent" });
+    }catch (error)
+    {
+        res.json({ message: "Could not process reset request — try again later" });
+    }
 });
 
 // Step 2 — Submit new password
 app.post('/reset-password/:token', async (req, res) => {
     const { password } = req.body;
+    try
+    {
 
-    const user = await users.findOne({
-        resetToken: req.params.token,
-        resetTokenExpiry: { $gt: Date.now() }   // token must not be expired
-    });
-
-    if (!user)
-        return res.status(400).json({ message: "Invalid or expired reset link" });
-
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
-    await user.save();
-
-    res.json({ success: true, message: "Password reset successfully. You can now log in." });
+        const user = await users.findOne({
+            resetToken: req.params.token,
+            resetTokenExpiry: { $gt: Date.now() }   // token must not be expired
+        });
+        
+        if (!user)
+            return res.status(400).json({ message: "Invalid or expired reset link" });
+        
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(password, salt);
+        user.resetToken = undefined;
+        user.resetTokenExpiry = undefined;
+        await user.save();
+        
+        res.json({ success: true, message: "Password reset successfully. You can now log in." });
+    }catch(error)
+    {
+        res.json({ message: "Could not reset password — try again later" });
+    }
 });
 app.listen(port)

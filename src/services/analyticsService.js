@@ -65,7 +65,8 @@ export async function sendData(id) {
     }
 
     try {
-        const res =  await fetch(`${import.meta.env.VITE_API_URL}/analys`, {
+        const url = import.meta.env.VITE_API_URL  || 'http://localhost:4000'
+        const res =  await fetch(`${url}/analys`, {
             method: 'POST',
             credentials: 'include', 
             headers: { 'Content-Type': 'application/json' },

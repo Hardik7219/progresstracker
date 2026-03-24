@@ -15,8 +15,7 @@ function Profile({refreshKey}) {
     const [frd,setFrd]= useState();
     const [showForgetm,setShowForget]= useState(false)
     const [forgetEmail,setForgetEmail] = useState('') 
-    const url = import.meta.env.VITE_API_URL
-
+    const url = import.meta.env.VITE_API_URL || 'http://localhost:4000'
     useEffect(() => {
       fetch(`${url}/me`, {
           credentials: "include"
@@ -74,18 +73,20 @@ function Profile({refreshKey}) {
       });
       setData(null);
   }
-    const sendRequest = async ()=>{
-        const res = await fetch(`${url}/friend`,{
-          method : 'POST',
-          credentials: 'include', 
-          headers : {'Content-Type': 'application/json'},
-          body : JSON.stringify({frd, _id : data.id})
-        })
-        const data = await res.json()
-        setMsg(data.message); 
-    }
-      const forgetPass = async (e) => {
+  const varifyAcc = async ()=>{
+    console.log('helloooooo')
+    const res = await fetch(`${url}/varify`,{
+      method :'POST',
+      credentials :"include",
+      headers :{'Content-Type': 'application/json'},
+      body : JSON.stringify({email : email})
+    })
+    const data = await res.json()
+    setMsg(data.message)
+  }
+const forgetPass = async (e) => {
         e.preventDefault()
+        console.log("forger")
       const res = await fetch(`${url}/forgot-password`,{
           method : 'POST',
           credentials: 'include', 
@@ -98,24 +99,6 @@ function Profile({refreshKey}) {
   }
   return (
     <div className='w-full'>
-      <div className=" p w-full h-20 bg-[#2e2a68] rounded-sm flex justify-between ">
-        <div className='flex justify-center items-center flex-row gap-1'>
-          <input onChange={(e)=>setFrd(e.target.value)} className='w-50 lg:w-100 outline-none search-box ' placeholder="Search" type="search"></input>
-          <button onClick={sendRequest} className='p rounded-sm text-[15px] lg:text-lg btn2 btn-primary'>Send Request</button>
-        </div>
-        <div className='flex justify-center items-center justify-self-end'>
-          <button onClick={()=>{
-            if (data && data.id) {
-              logout();
-            } else {
-              setLogin(current => !current);
-              setSign(true);
-            }
-          }} className='p rounded-sm text-[15px] lg:text-lg btn2 btn-primary'>
-            {data && data.id ? 'logout' : 'login'}
-          </button>
-        </div>
-      </div>
       {!sin && (
         <div className='flex justify-self-center self-center justify-center items-center card w-100'>
         <form className="flex gap-10 flex-col" onSubmit={CreateUser}>
@@ -133,16 +116,16 @@ function Profile({refreshKey}) {
           </div>
           <button type="submit" className='self-center w-20 flex justify-center items-center btn btn-primary'>submit</button>
           <button onClick={()=>{setLogin(true); setSign(true)}}>Already have Account?</button>
-          </form>
           {msg && (
             <p>{msg}</p>
           )}
+          </form>
           </div>
         )}
           
           {login && (
-                <div className='flex justify-self-center self-center justify-center items-center card w-100'>
-                  <form className="flex gap-10 flex-col" onSubmit={loginUser}>
+                <div className='flex justify-self-center self-center justify-center flex-col  items-center card w-100'>
+                  <form className="flex gap-10 flex-col" >
                     <div className='form-group'>
                     <label>Email</label>
                     <input onChange={(e)=>setEmail(e.target.value)} className="outline-1 bg-amber-300" type="email" />
@@ -151,12 +134,15 @@ function Profile({refreshKey}) {
                     <label>Password</label>
                     <input onChange={(e)=>setPassword(e.target.value)} className="outline-1 bg-amber-300" type="password"/>
                   </div>
-                  <button type="submit" className='self-center w-20 flex justify-center items-center btn btn-primary'>submit</button>
-                  <button onClick={()=>{setShowForget(true); setLogin(false)}} className=''>forget password</button>
-                  </form>
+                  <button type="submit" onClick={loginUser} className='self-center w-20 flex justify-center items-center btn btn-primary'>submit</button>
                   {msg && (
                     <p>{msg}</p>
                   )}
+                  </form>
+                  <div className='flex'>
+                    <button onClick={()=>{setShowForget(true); setLogin(false)}} className='btn btn-primary'>forget password</button>
+                    <button onClick={varifyAcc} className='btn btn-primary '>If not varify then varify</button>
+                  </div>
                 </div>
           )}
           {showForgetm && (
@@ -168,10 +154,10 @@ function Profile({refreshKey}) {
                   </div>
                   <button type="submit" className='self-center w-20 flex justify-center items-center btn btn-primary'>submit</button>
                   <button onClick={()=>{setLogin(true); setShowForget(false)}} className=''>Back to login</button>
-                  </form>
                   {msg && (
                     <p>{msg}</p>
                   )}
+                  </form>
                 </div>
           )}
           {pr && (
