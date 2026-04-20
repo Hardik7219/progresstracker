@@ -81,7 +81,7 @@ export default function TaskManager({ onRefresh }) {
         .filter((t) => {
             // Hide completed one-time tasks — they are done and logged, no need to show them.
             // (This is a safety net; completeTask already removes them, but old data may linger.)
-            if (t.type === 'one-time' && t.completed) return false;
+            //if (t.type === 'one-time' && t.completed) return false;
 
             if (filter !== 'all' && t.type !== filter) return false;
             if (statusFilter === 'pending' && t.completed) return false;

@@ -119,13 +119,6 @@ export function completeTask(id) {
     // Always write to completion log — preserves history even after removal
     appendCompletionLog(completedTask);
 
-    if (task.type === 'one-time') {
-        // One-time tasks are done forever — remove from active list immediately.
-        // History is safe in the completion log.
-        deleteTask(id);
-        return completedTask;
-    }
-
     // daily / weekly stay in the list so they can reset tomorrow
     return updateTask(id, {
         completed:       true,
@@ -152,34 +145,43 @@ export function resetDailyTasks() {
     today.setHours(0, 0, 0, 0);
 
     const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setDate(today.getDate() - 1);
 
-    const updated = tasks.map((task) => {
-        if (!task.completed || !task.completion_date) return task;
+    const updated = tasks
+        .filter((task) => {
+            if (task.type === 'one-time' && task.completed) {
+                const cd = new Date(task.completion_date);
+                cd.setHours(0, 0, 0, 0);
+                return cd.getTime() === today.getTime(); // keep only if completed today
+            }
+            return true;
+        })
+        .map((task) => {
+            if (!task.completed || !task.completion_date) return task;
 
-        const cd = new Date(task.completion_date);
-        cd.setHours(0, 0, 0, 0);
+            const cd = new Date(task.completion_date);
+            cd.setHours(0, 0, 0, 0);
 
-        if (task.type === 'daily' && cd.getTime() <= yesterday.getTime()) {
-            // Log it before wiping (in case completeTask wasn't used)
-            appendCompletionLog({ ...task, completion_date: task.completion_date });
-            return { ...task, completed: false, completion_date: null };
-        }
-
-        if (task.type === 'weekly') {
-            // Reset if completed in any previous week
-            const completedWeekStart = new Date(cd);
-            completedWeekStart.setDate(cd.getDate() - cd.getDay());
-            const currentWeekStart = new Date(today);
-            currentWeekStart.setDate(today.getDate() - today.getDay());
-            if (completedWeekStart < currentWeekStart) {
-                appendCompletionLog({ ...task, completion_date: task.completion_date });
+            if (task.type === 'daily' && cd.getTime() <= yesterday.getTime()) {
+                appendCompletionLog({ ...task });
                 return { ...task, completed: false, completion_date: null };
             }
-        }
 
-        return task;
-    });
+            if (task.type === 'weekly') {
+                const completedWeekStart = new Date(cd);
+                completedWeekStart.setDate(cd.getDate() - cd.getDay());
+
+                const currentWeekStart = new Date(today);
+                currentWeekStart.setDate(today.getDate() - today.getDay());
+
+                if (completedWeekStart < currentWeekStart) {
+                    appendCompletionLog({ ...task });
+                    return { ...task, completed: false, completion_date: null };
+                }
+            }
+
+            return task;
+        });
 
     write(KEYS.TASKS, updated);
 }

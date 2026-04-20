@@ -19,7 +19,19 @@ function downloadFile(content, filename, mimeType) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
+async function saveFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const arrayBuffer = await blob.arrayBuffer();
 
+    const result = await window.electronAPI.saveFile({
+        buffer: arrayBuffer,
+        filename
+    });
+
+    if (!result.success) {
+        alert("Save cancelled");
+    }
+}
 // ─── JSON Export ────────────────────────────────────────────
 
 export function exportJSON() {
@@ -51,7 +63,7 @@ export function exportCSV() {
 
 // ─── PDF Export ─────────────────────────────────────────────
 
-export function exportPDF() {
+export async function exportPDF() {
     const doc = new jsPDF();
     const stats = getBasicStats();
     const progress = getProgressScore();
@@ -119,8 +131,19 @@ export function exportPDF() {
         columnStyles: { 0: { cellWidth: 50 } },
     });
 
-    const dateStr = format(new Date(), 'yyyy-MM-dd');
-    doc.save(`progress-report-${dateStr}.pdf`);
+     const dateStr = format(new Date(), 'yyyy-MM-dd');
+
+    const blob = doc.output('blob');
+    const arrayBuffer = await blob.arrayBuffer();
+
+    const result = await window.electronAPI.saveFile({
+        buffer: arrayBuffer,
+        filename: `progress-report-${dateStr}.pdf`
+    });
+
+    if (!result.success) {
+        alert("Save cancelled");
+    }
 }
 
 // ─── Export Archived Data ───────────────────────────────────
