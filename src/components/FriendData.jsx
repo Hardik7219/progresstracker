@@ -37,6 +37,7 @@ function FriendData({ refreshKey }) {
     const [datas,setDatas]=useState();
     const [par, setPar] = useState()
     const [anyl, setAnyl] = useState();
+    const [loading,setLoading]= useState();
     const [n,setN]=useState();
     const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, completionPercentage: 0 });
     const [progress, setProgress] = useState({ completionComponent: 0, consistencyComponent: 0, consistencyRate: 0, score: 0, streakComponent: 0 });
@@ -48,28 +49,28 @@ function FriendData({ refreshKey }) {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) return;
-
+        setLoading(true)
         fetch(`${url}/me`, {
             headers: { Authorization: `Bearer ${token}` }
         })
             .then(res => res.json())
-            .then(data => setData(data))
+            .then(data => {setData(data)
+                setLoading(false)
+            })
             .catch(() => console.log("Not logged in"));
     }, []);
-    useEffect(() => {
-        if (data && data.id) {
-            sendData(data.id);
-        }
-    }, [data]);
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) return;
         if (!data?.id) { setMsg("Please login first"); return; }
+        setLoading(true)
         fetch(`${url}/analysFriend/${data.id}`, {
             headers: { Authorization: `Bearer ${token}` }
         })
             .then(res => res.json())
-            .then(data => anydata(data))
+            .then(data => {anydata(data)
+                setLoading(false)
+            })
             .catch(() => console.log("No data"));
             setMsg("")
     }, [data])
@@ -184,8 +185,41 @@ function FriendData({ refreshKey }) {
     return (
         <>
             <div className='w-full'>
+                {loading && (
 
+                    <div className='h-screen  animate-pulse '>
+                <div className="analytics-score-section  h-60">
+                </div>
+                <div className="analytics-stats h-40">
+                            <div className="mini-stat">
+                                
+                                
+                            </div>
+                            <div className="mini-stat">
+                                
+                                
+                            </div>
+                            <div className="mini-stat">
+                                
+                                
+                            </div>
+                            <div className="mini-stat">
+                                
+                                
+                            </div>
+                            <div className="mini-stat">
+                                
+                                
+                            </div>
+                    </div>
+                    <div className="card h-7/12"></div>
+                    <div className='card h-60'></div>
+            </div>
+            )}
 
+          {!loading && (
+
+              <div>
 
                 {!data && (
                     <div className='flex justify-self-center self-center justify-center items-center card w-100'>
@@ -200,7 +234,7 @@ function FriendData({ refreshKey }) {
                         <div className="page-header">
                             <div>
                                 <h1>Progress Analytics of <p>{n}</p></h1>
-                                <p className="subtitle">Track your productivity over time</p>
+                                <p className="subtitle">Hardik's productivity over time</p>
                             </div>
                         </div>
                         {/* Score Overview */}
@@ -220,7 +254,7 @@ function FriendData({ refreshKey }) {
                                             strokeDasharray={`${(progress.score / 100) * 339.3} 339.3`}
                                             transform="rotate(-90 60 60)"
                                             className="score-ring"
-                                        />
+                                            />
                                     </svg>
                                     <div className="score-value">
                                         <span className="score-num">{progress.score}</span>
@@ -277,7 +311,7 @@ function FriendData({ refreshKey }) {
                                             },
                                         },
                                     }}
-                                />
+                                    />
                             </div>
                         </div>
                         {/* Stats Row */}
@@ -302,11 +336,6 @@ function FriendData({ refreshKey }) {
                                 <span className="mini-stat-value">{progress.consistencyRate}%</span>
                                 <span className="mini-stat-label">Consistency</span>
                             </div>
-                        </div>
-                        {/* Trend Insight */}
-                        <div className={`trend-card trend-${trend.trend}`}>
-                            <span className="trend-icon">{trend.icon}</span>
-                            <span className="trend-text">{trend.message}</span>
                         </div>
                         <div className="card chart-card">
                             <div className="card-header">
@@ -343,8 +372,11 @@ function FriendData({ refreshKey }) {
                         </div>
                     </div>
                 )}
-                                {!par  && (
-                    <div className=" p w-full h-20 bg-[#2e2a68] rounded-sm flex justify-between ">
+                                
+                </div>
+                    )}
+                    {!par  && (
+                                    <div className=" p w-full h-20 bg-[#2e2a68] rounded-sm flex justify-between ">
                         <div className='flex justify-center items-center flex-row gap-1'>
                             <input onChange={(e) => setFrd(e.target.value)} className='w-50 lg:w-100 outline-none search-box ' placeholder="Search" type="search"></input>
                             <button onClick={sendRequest} className='p rounded-sm text-[15px] lg:text-lg btn2 btn-primary'>Send Request</button>

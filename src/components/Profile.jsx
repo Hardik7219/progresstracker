@@ -46,7 +46,7 @@ function Profile({refreshKey}) {
 useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
-
+    setSign(true)
     fetch(`${url}/me`, {
         headers: { Authorization: `Bearer ${token}` }
     })

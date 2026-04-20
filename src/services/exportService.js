@@ -19,7 +19,19 @@ function downloadFile(content, filename, mimeType) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
+async function saveFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const arrayBuffer = await blob.arrayBuffer();
 
+    const result = await window.electronAPI.saveFile({
+        buffer: arrayBuffer,
+        filename
+    });
+
+    if (!result.success) {
+        alert("Save cancelled");
+    }
+}
 // ─── JSON Export ────────────────────────────────────────────
 
 export function exportJSON() {
@@ -120,7 +132,23 @@ export function exportPDF() {
     });
 
     const dateStr = format(new Date(), 'yyyy-MM-dd');
-    doc.save(`progress-report-${dateStr}.pdf`);
+     const doc = new jsPDF();
+
+    // ... your existing code stays SAME ...
+
+    const dateStr = format(new Date(), 'yyyy-MM-dd');
+
+    const blob = doc.output('blob');
+    const arrayBuffer = await blob.arrayBuffer();
+
+    const result = await window.electronAPI.saveFile({
+        buffer: arrayBuffer,
+        filename: `progress-report-${dateStr}.pdf`
+    });
+
+    if (!result.success) {
+        alert("Save cancelled");
+    }
 }
 
 // ─── Export Archived Data ───────────────────────────────────
