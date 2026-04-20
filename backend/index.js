@@ -14,11 +14,7 @@ const port = process.env.PORT || 4000
 
 app.use(cookies())
 app.use(cors({
-    origin: [
-        "http://localhost:5173",     // Vite dev server
-        "app://.",                   // Electron production (file protocol)
-        "http://localhost:3000",     // fallback
-    ],
+    origin: true, 
     credentials: true
 }));
 app.use(express.json())
@@ -55,15 +51,15 @@ app.post('/create', async (req, res) => {
             email,
             password: hash,
             verifyToken,
-            isVerified: false
+            isVerified: true
         });
-        const baseURL = process.env.BASE_URL || "http://localhost:4000";
-        // Send verification email
+        // const baseURL = process.env.BASE_URL || "http://localhost:4000";
+        // // Send verification email
 
-            sendVerificationEmail(email, verifyToken, baseURL);
+        //     sendVerificationEmail(email, verifyToken, baseURL);
             
-            return res.json({ success: true, message: "Check your email to verify your account" });
-
+        //     return res.json({ success: true, message: "Check your email to verify your account" });
+        return res.status(201).json({ success: true, message: "Account created! You can now log in." });
     } catch (error) {
         res.status(500).json({ message: "Error creating user" });
     }
@@ -159,16 +155,15 @@ app.post('/login', async (req, res) => {
             { id: findUser._id, username : findUser.userName ,email: findUser.email},
             process.env.JWT_SECRET,{expiresIn : '7d'});
 
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "lax",
-            maxAge: 7 * 24 * 60 * 60 * 1000 
-        });
-        
+            res.cookie('token', token, {
+                httpOnly: true,
+                sameSite: "none",
+                secure: false
+            });
         res.status(200).json({
             success: true,
-            message: "Login successful"
+            message: "Login successful",
+            token: token 
         });
 
     } catch (error) {
@@ -180,32 +175,28 @@ app.post('/login', async (req, res) => {
     }
 });
 app.post('/logout', (req, res) => {
-    res.clearCookie('token', { httpOnly: true, sameSite: 'lax' });
+    res.clearCookie('token', { httpOnly: true, sameSite: 'none' });
     res.json({ success: true, message: "Logged out" });
 });
 
-app.get('/me', async (req,res)=>{
-    const token = req.cookies.token;    
-    if (!token) return res.status(401).json({
-    success: false,
-    message: "Unauthorized"
-});
+// In /me route, replace cookie logic with:
+app.get('/me', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Unauthorized" });
+
+    const token = authHeader.split(' ')[1]; // "Bearer <token>"
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        res.json({
+        return res.json({
             id: decoded.id,
             email: decoded.email,
-            username : decoded.username,
+            username: decoded.username,
         });
     } catch {
-        return res.status(401).json({
-                success: false,
-                message:'server error'
-            });
+        return res.status(401).json({ message: "Invalid token" });
     }
-})
+});
 
 app.post('/analys', async (req, res) => {
     const { 
@@ -315,4 +306,40 @@ app.post('/reset-password/:token', async (req, res) => {
         res.json({ message: "Could not reset password — try again later" });
     }
 });
+
+app.post('/friend',async(req,res)=>{
+    const {frd,id} = req.body;
+    try {
+        
+        const user =  await users.findOne({_id:id});
+        const friend= await users.findOne({userName:frd});
+        if (!user) return res.json({ message: "user not found" })
+        if (!friend) return res.json({ message: "user not found" })
+        if (user.partner && user.partner.equals(friend._id)) {
+            return res.status(200).json({ success: true, message: "Already friends" });
+        }
+
+    user.partner=friend._id;
+    friend.partner=user._id;
+
+        await user.save();
+        await friend.save();
+        return res.status(200).json({
+            success: true,
+            message: "Added"
+        });
+    } catch (error) {
+        return res.send({message:"somthing happend"})
+    }
+})
+app.get('/analysFriend/:id',async(req,res)=>{
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ message: "Unauthorized" });
+    const id=req.params.id;
+    const user = await users.findById(id);
+    if(!user) return res.json({ message: "user not found" })
+    const frd= await users.findOne({_id:user.partner})
+    const partn= await analys.findOne({userId:user.partner})
+    res.send({data:partn,partn:frd.userName})
+})
 app.listen(port)

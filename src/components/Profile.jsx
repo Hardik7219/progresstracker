@@ -13,21 +13,9 @@ function Profile({refreshKey}) {
     const [msg,setMsg] = useState('')
     const [login,setLogin] = useState(false)
     const [frd,setFrd]= useState();
-    const [showForgetm,setShowForget]= useState(false)
-    const [forgetEmail,setForgetEmail] = useState('') 
+    // const [showForgetm,setShowForget]= useState(false)
+    // const [forgetEmail,setForgetEmail] = useState('') 
     const url = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-    useEffect(() => {
-      fetch(`${url}/me`, {
-          credentials: "include"
-      })
-      .then(res => res.json())
-      .then(data => {
-          setData(data);
-      })
-      .catch(() => {
-          console.log("Not logged in");
-      });
-  }, []);
   useEffect(() => {
     if (data && data.id) {
         setPr(true)
@@ -54,56 +42,78 @@ function Profile({refreshKey}) {
       setMsg("Something went wrong");
     }
   };
+// On app load useEffect — read from localStorage:
+useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
 
-    const loginUser = async (e) => {
-      e.preventDefault();
-      const res = await fetch(`${url}/login`,{
-          method:'POST',
-          credentials: "include",
-          headers : {'Content-Type': 'application/json'},
-          body : JSON.stringify({email:email,password:password})
-      })
-      const data = await res.json()
-      setMsg(data.message); 
-  }
+    fetch(`${url}/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => setData(data))
+    .catch(() => console.log("Not logged in"));
+}, []);
+// After login success:
+const loginUser = async (e) => {
+    e.preventDefault();
+    const res = await fetch(`${url}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    setMsg(data.message);
+
+    if (data.success) {
+        localStorage.setItem('token', data.token); // store it
+        const meRes = await fetch(`${url}/me`, {
+            headers: { Authorization: `Bearer ${data.token}` }
+        });
+        const meData = await meRes.json();
+        setData(meData);
+    }
+};
   const logout = async () => {
       await fetch(`${url}/logout`, {
           method: 'POST',
           credentials: 'include'
       });
       setData(null);
+localStorage.removeItem('token');
+setData(null);
   }
-  const varifyAcc = async ()=>{
-    console.log('helloooooo')
-    const res = await fetch(`${url}/varify`,{
-      method :'POST',
-      credentials :"include",
-      headers :{'Content-Type': 'application/json'},
-      body : JSON.stringify({email : email})
-    })
-    const data = await res.json()
-    setMsg(data.message)
-  }
-const forgetPass = async (e) => {
-        e.preventDefault()
-        console.log("forger")
-      const res = await fetch(`${url}/forgot-password`,{
-          method : 'POST',
-          credentials: 'include', 
-          headers : {'Content-Type': 'application/json'},
-          body : JSON.stringify({ email: forgetEmail })
-      });
+  // const varifyAcc = async ()=>{
+  //   console.log('helloooooo')
+  //   const res = await fetch(`${url}/varify`,{
+  //     method :'POST',
+  //     credentials :"include",
+  //     headers :{'Content-Type': 'application/json'},
+  //     body : JSON.stringify({email : email})
+  //   })
+  //   const data = await res.json()
+  //   setMsg(data.message)
+  // }
+// const forgetPass = async (e) => {
+//         e.preventDefault()
+//         console.log("forger")
+//       const res = await fetch(`${url}/forgot-password`,{
+//           method : 'POST',
+//           credentials: 'include', 
+//           headers : {'Content-Type': 'application/json'},
+//           body : JSON.stringify({ email: forgetEmail })
+//       });
 
-      const resData = await res.json();
-      setMsg(resData.message); 
-  }
+//       const resData = await res.json();
+//       setMsg(resData.message); 
+//   }
   return (
     <div className='w-full'>
       {!sin && (
         <div className='flex justify-self-center self-center justify-center items-center card w-100'>
         <form className="flex gap-10 flex-col" onSubmit={CreateUser}>
           <div className='form-group'>
-            <label>Username</label>
+            <label>UserName</label>
             <input onChange={(e)=>setUserName(e.target.value)} className="outline-1 bg-amber-300" type="text" />
           </div>
           <div className='form-group'>
@@ -125,7 +135,7 @@ const forgetPass = async (e) => {
           
           {login && (
                 <div className='flex justify-self-center self-center justify-center flex-col  items-center card w-100'>
-                  <form className="flex gap-10 flex-col" >
+                  <form className="flex gap-10 flex-col" onSubmit={loginUser}>
                     <div className='form-group'>
                     <label>Email</label>
                     <input onChange={(e)=>setEmail(e.target.value)} className="outline-1 bg-amber-300" type="email" />
@@ -134,18 +144,14 @@ const forgetPass = async (e) => {
                     <label>Password</label>
                     <input onChange={(e)=>setPassword(e.target.value)} className="outline-1 bg-amber-300" type="password"/>
                   </div>
-                  <button type="submit" onClick={loginUser} className='self-center w-20 flex justify-center items-center btn btn-primary'>submit</button>
+                  <button type="submit" className='self-center w-20 flex justify-center items-center btn btn-primary'>submit</button>
                   {msg && (
                     <p>{msg}</p>
                   )}
                   </form>
-                  <div className='flex'>
-                    <button onClick={()=>{setShowForget(true); setLogin(false)}} className='btn btn-primary'>forget password</button>
-                    <button onClick={varifyAcc} className='btn btn-primary '>If not varify then varify</button>
-                  </div>
                 </div>
           )}
-          {showForgetm && (
+          {/* {showForgetm && (
                 <div className='flex justify-self-center self-center justify-center items-center card w-100'>
                   <form className="flex gap-10 flex-col" onSubmit={forgetPass}>
                     <div className='form-group'>
@@ -159,18 +165,13 @@ const forgetPass = async (e) => {
                   )}
                   </form>
                 </div>
-          )}
+          )} */}
           {pr && (
-
-            <div className='h-screen w-full bg-amber-50 flex flex-col lg:flex-row gap-10 items-center'>
-            <div className='border rounded-full h-90 w-90 lg:h-100 bg-amber-500 lg:w-100'>
-                <img src="" alt="" srcset="" />
-            </div>
-            <div className='h-90 w-90 lg:h-100 lg:w-100 bg-amber-950'>
-              <p>{data?.username}</p>
-              <p>{data?.email}</p>
-              <p>{data?.varify}</p>
-              
+            <div className='h-screen w-full flex  gap-10 '>
+            <div className='h-90 w-90 lg:h-100 lg:w-100'>
+              <p className='font-mono text-2xl text-emerald-400'>{data?.username}</p>
+              <p className='font-mono text-2xl text-emerald-400'>{data?.email}</p>
+              <button type="submit" onClick={logout} className='self-center w-20 flex justify-center items-center btn btn-primary'>LOGOUT</button>
               {msg && (
                 <p>{msg}</p>
               )}
