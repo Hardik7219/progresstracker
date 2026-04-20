@@ -185,6 +185,9 @@ function FriendData({ refreshKey }) {
     return (
         <>
             <div className='w-full'>
+                <div>
+
+
                 {loading && (
 
                     <div className='h-screen  animate-pulse '>
@@ -375,8 +378,9 @@ function FriendData({ refreshKey }) {
                                 
                 </div>
                     )}
+                                    </div>
                     {!par  && (
-                                    <div className=" p w-full h-20 bg-[#2e2a68] rounded-sm flex justify-between ">
+                    <div className=" p w-full h-20 bg-[#2e2a68] rounded-sm flex justify-between ">
                         <div className='flex justify-center items-center flex-row gap-1'>
                             <input onChange={(e) => setFrd(e.target.value)} className='w-50 lg:w-100 outline-none search-box ' placeholder="Search" type="search"></input>
                             <button onClick={sendRequest} className='p rounded-sm text-[15px] lg:text-lg btn2 btn-primary'>Send Request</button>

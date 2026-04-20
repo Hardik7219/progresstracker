@@ -63,7 +63,7 @@ export function exportCSV() {
 
 // ─── PDF Export ─────────────────────────────────────────────
 
-export function exportPDF() {
+export async function exportPDF() {
     const doc = new jsPDF();
     const stats = getBasicStats();
     const progress = getProgressScore();
@@ -131,12 +131,7 @@ export function exportPDF() {
         columnStyles: { 0: { cellWidth: 50 } },
     });
 
-    const dateStr = format(new Date(), 'yyyy-MM-dd');
-     const doc = new jsPDF();
-
-    // ... your existing code stays SAME ...
-
-    const dateStr = format(new Date(), 'yyyy-MM-dd');
+     const dateStr = format(new Date(), 'yyyy-MM-dd');
 
     const blob = doc.output('blob');
     const arrayBuffer = await blob.arrayBuffer();
