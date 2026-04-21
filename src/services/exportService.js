@@ -1,12 +1,10 @@
-/**
- * Export Service — JSON, CSV, PDF export for tasks and analytics.
- */
 import { getAllData, getTasks, getArchivedTasks } from './storageService';
 import { getBasicStats, getProgressScore, getDailyTrends } from './analyticsService';
 import { getTaskStreak, getPhotoStreak } from './streakService';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { format } from 'date-fns';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 function downloadFile(content, filename, mimeType) {
     const blob = new Blob([content], { type: mimeType });
@@ -19,19 +17,16 @@ function downloadFile(content, filename, mimeType) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
-async function saveFile(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
-    const arrayBuffer = await blob.arrayBuffer();
 
-    const result = await window.electronAPI.saveFile({
-        buffer: arrayBuffer,
-        filename
+async function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
     });
-
-    if (!result.success) {
-        alert("Save cancelled");
-    }
 }
+
 // ─── JSON Export ────────────────────────────────────────────
 
 export function exportJSON() {
@@ -74,7 +69,7 @@ export async function exportPDF() {
 
     // Header
     doc.setFontSize(22);
-    doc.setTextColor(99, 102, 241); // indigo
+    doc.setTextColor(99, 102, 241);
     doc.text('Progress Tracker Report', 14, 25);
     doc.setFontSize(10);
     doc.setTextColor(107, 114, 128);
@@ -85,8 +80,6 @@ export async function exportPDF() {
     doc.setTextColor(31, 41, 55);
     doc.text('Summary', 14, 48);
 
-    doc.setFontSize(11);
-    doc.setTextColor(75, 85, 99);
     const summaryData = [
         ['Progress Score', `${progress.score}/100`],
         ['Total Tasks', stats.total.toString()],
@@ -107,7 +100,6 @@ export async function exportPDF() {
         styles: { fontSize: 10 },
     });
 
-    // Tasks Table
     const finalY = doc.lastAutoTable.finalY + 15;
     doc.setFontSize(14);
     doc.setTextColor(31, 41, 55);
@@ -131,18 +123,30 @@ export async function exportPDF() {
         columnStyles: { 0: { cellWidth: 50 } },
     });
 
-     const dateStr = format(new Date(), 'yyyy-MM-dd');
-
+    const dateStr = format(new Date(), 'yyyy-MM-dd');
+    const filename = `progress-report-${dateStr}.pdf`;
     const blob = doc.output('blob');
-    const arrayBuffer = await blob.arrayBuffer();
 
-    const result = await window.electronAPI.saveFile({
-        buffer: arrayBuffer,
-        filename: `progress-report-${dateStr}.pdf`
-    });
+    if (window.electronAPI) {
+        // ── Desktop (Electron) ──
+        const arrayBuffer = await blob.arrayBuffer();
+        const result = await window.electronAPI.saveFile({ buffer: arrayBuffer, filename });
+        if (!result.success) alert('Save cancelled');
 
-    if (!result.success) {
-        alert("Save cancelled");
+    } else {
+        // ── Android (Capacitor) ──
+        try {
+            const base64 = await blobToBase64(blob);
+            await Filesystem.writeFile({
+                path: filename,
+                data: base64,
+                directory: Directory.Documents,
+            });
+            alert(`Saved to Documents/${filename}`);
+        } catch (err) {
+            console.error('Filesystem error:', err);
+            alert('Failed to save PDF: ' + err.message);
+        }
     }
 }
 
