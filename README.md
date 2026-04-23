@@ -75,6 +75,15 @@ A cross-platform productivity app for tracking tasks, daily streaks, and persona
 
 ---
 
+### ScreenShots 
+<div style="display:flex; justify-content:center; align-items:center">
+  <img width="550" alt="Screenshot_20260421_183848" src="https://github.com/user-attachments/assets/d4029224-ba28-43ab-9167-ba25b0db7b29" />
+  <img width="550" alt="Screenshot_20260421_183824" src="https://github.com/user-attachments/assets/801a10b4-e738-4399-a7cd-6d7d4166238c" />
+  <img width="550" alt="Screenshot_20260421_183747" src="https://github.com/user-attachments/assets/40f5830b-10a7-4595-879b-bf95bf1cb079" />
+</div>
+
+
+
 ## 🚀 Getting Started
 
 ### Prerequisites
