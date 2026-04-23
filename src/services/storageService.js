@@ -10,6 +10,8 @@
  * - pt_photos          → photo journal entries
  * - pt_settings        → user preferences
  */
+import { Capacitor } from '@capacitor/core';
+import {LocalNotifications} from '@capacitor/local-notifications'
 
 const KEYS = {
     TASKS:          'pt_tasks',
@@ -42,6 +44,52 @@ function generateId() {
 // A permanent append-only log of every completion event.
 // Each entry: { id, task_id, task_title, task_type, completed_on }
 // This survives task archiving, resets, and deletion.
+
+export async function requestPermission() {
+  const permission = await LocalNotifications.requestPermissions();
+  return permission.display === 'granted';
+}
+
+export async function createChannel() {
+    await LocalNotifications.createChannel({
+        id: "progress_reminders_v3",
+        name: "Progress Reminders",
+        description: "Task reminder notifications",
+        importance: 4,
+        sound: "notify_sound.wav"
+    });
+}
+export async function scheduleAt({ id, title, body, at }) {
+    const fireAt = at instanceof Date ? at : new Date(at);
+    console.log(title)
+        await LocalNotifications.schedule({
+            notifications: [{
+                id: Math.abs(Math.round(id)),
+                title: String(title),
+                body: String(body || title),
+                schedule: { at: fireAt },
+                channelId: "progress_reminders_v3",
+                sound: "notify_sound.wav",
+                actionTypeId: '',
+                extra: null,
+            }],
+        });
+    const delay = fireAt.getTime() - Date.now();
+    if (delay <= 0) throw new Error('Time is in the past.');
+    setTimeout(() => {
+        if (Notification.permission === 'granted') {
+            new Notification(title, { body: body || title });
+        }
+    }, delay);
+      if (Capacitor.getPlatform() === "web") {
+    const delay = fireAt.getTime() - Date.now();
+    if (delay > 0 && Notification.permission === 'granted') {
+      setTimeout(() => {
+        new Notification(title, { body: body || title });
+      }, delay);
+    }
+  }
+}
 
 export function getCompletionLog() {
     return read(KEYS.COMPLETION_LOG) || [];
@@ -76,13 +124,21 @@ export function getTask(id) {
     return getTasks().find((t) => t.id === id) || null;
 }
 
-export function addTask(task) {
+export async function addTask(task) {
     const tasks = getTasks();
-    const newTask = {
+    if(task.datetime)
+    {
+        await requestPermission();
+        await createChannel();
+        const id = generateId();
+        await scheduleAt({ id, title: task.title.trim(), body: task.title.trim(), at:task.datetime });
+    }
+    const newTask = {   
         id: generateId(),
         title:       task.title,
         description: task.description || '',
         type:        task.type || 'one-time',
+        at: task.datetime || null,
         created_date:    new Date().toISOString(),
         completed:       false,
         completion_date: null,
@@ -253,6 +309,7 @@ export function getAllTasksForAnalytics() {
     const sixtyDaysAgo = new Date();
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
+
     // 1. Build synthetic task objects from the completion log
     const log = getCompletionLog();
     const logTasks = log
@@ -291,7 +348,6 @@ export function getAllTasksForAnalytics() {
 
     return [...logTasks, ...supplemental];
 }
-
 // ─── Photos ─────────────────────────────────────────────────
 
 export function getPhotos() {

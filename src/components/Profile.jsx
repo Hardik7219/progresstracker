@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Cookies from 'js-cookie';
 import {sendData} from '../services/analyticsService'
 import { set } from 'date-fns';
+import Loader from './Loader';
 
 function Profile({refreshKey}) {
     const [data,setData]= useState(null);
@@ -13,6 +14,8 @@ function Profile({refreshKey}) {
     const [msg,setMsg] = useState('')
     const [login,setLogin] = useState(false)
     const [frd,setFrd]= useState();
+    const [loading,setLoading] = useState(true);
+    const [loader,setLoader] = useState(false)
     // const [showForgetm,setShowForget]= useState(false)
     // const [forgetEmail,setForgetEmail] = useState('') 
     const url = import.meta.env.VITE_API_URL || 'http://localhost:4000'
@@ -25,6 +28,8 @@ function Profile({refreshKey}) {
 }, [data]);
     const CreateUser = async (e) => {
     e.preventDefault();
+    if(loader) return 
+    setLoader(true);
 
     try {
       const res = await fetch(`${url}/create`, {
@@ -34,11 +39,11 @@ function Profile({refreshKey}) {
       });
 
       const data = await res.json();
-
+      setLoader(false)
       setMsg(data.message); // or setMsg(data)
-
+      
     } catch (error) {
-      console.error(error);
+      setLoader(false)
       setMsg("Something went wrong");
     }
   };
@@ -46,17 +51,20 @@ function Profile({refreshKey}) {
 useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
+    setLoading(false)
     setSign(true)
     fetch(`${url}/me`, {
         headers: { Authorization: `Bearer ${token}` }
     })
     .then(res => res.json())
-    .then(data => setData(data))
-    .catch(() => console.log("Not logged in"));
+    .then(data => {setData(data), setLoading(true)})
+    .catch(() => {console.log("Not logged in"),setLoading(false)});
 }, []);
 // After login success:
 const loginUser = async (e) => {
     e.preventDefault();
+    if(loader) return 
+    setLoader(true);
     const res = await fetch(`${url}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,7 +72,7 @@ const loginUser = async (e) => {
     });
     const data = await res.json();
     setMsg(data.message);
-
+    setLoader(false)
     if (data.success) {
         localStorage.setItem('token', data.token); // store it
         const meRes = await fetch(`${url}/me`, {
@@ -75,10 +83,13 @@ const loginUser = async (e) => {
     }
 };
   const logout = async () => {
+        if(loader) return 
+    setLoader(true);
       await fetch(`${url}/logout`, {
           method: 'POST',
           credentials: 'include'
       });
+      setLoader(false)
       setData(null);
 localStorage.removeItem('token');
 setData(null);
@@ -109,6 +120,20 @@ setData(null);
 //   }
   return (
     <div className='w-full'>
+      {!loading && (
+
+        <div className='animate-pulse'>
+          <div className='card h-2 w-70'></div>
+          <div className='card h-2 w-70'></div>
+      </div>
+      )}
+      {loader && (
+      <div className='flex z-50 top-0 fixed self-center w-full h-screen justify-self-center justify-center items-center'>
+      <div className=" w-full h-screen backdrop-blur-sm flex justify-center items-center">
+      <Loader></Loader>
+      </div>
+      </div>
+      )}
       {!sin && (
         <div className='flex justify-self-center self-center justify-center items-center card w-100'>
         <form className="flex gap-10 flex-col" onSubmit={CreateUser}>

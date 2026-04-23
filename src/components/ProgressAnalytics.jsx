@@ -146,7 +146,6 @@ export default function ProgressAnalytics({ refreshKey }) {
                     <p className="subtitle">Track your productivity over time</p>
                 </div>
             </div>
-
             {/* Score Overview */}
             <div className="analytics-score-section">
                 <div className="score-circle-container">

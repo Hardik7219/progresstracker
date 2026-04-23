@@ -185,12 +185,14 @@ export default function TaskManager({ onRefresh }) {
                                         {task.title}
                                     </span>
                                     <span className={`task-badge badge-${task.type}`}>{task.type}</span>
+                                    
                                 </div>
                                 {task.description && (
                                     <p className="task-desc">{task.description}</p>
                                 )}
                                 <div className="task-meta">
                                     <span>Created {format(new Date(task.created_date), 'MMM dd, yyyy')}</span>
+                                    {task.at ? <p>Completed at: <span className={`task-badge bg-amber-500/50`}>{task.at}</span></p>: ""}
                                     {task.completed && task.completion_date && (
                                         <span className="task-completed-date">
                                             ✓ Completed {format(new Date(task.completion_date), 'MMM dd, yyyy')}

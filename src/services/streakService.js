@@ -69,7 +69,6 @@ export function getTaskStreak() {
 
     return { current, longest: Math.max(longest, current) };
 }
-
 // ─── Photo Streak ───────────────────────────────────────────
 
 function getPhotoUploadDates() {

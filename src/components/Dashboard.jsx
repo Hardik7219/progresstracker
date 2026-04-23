@@ -141,7 +141,7 @@ export default function Dashboard({ onNavigate, refreshKey }) {
                                             : <Circle size={18} />}
                                     </button>
                                     <span className="task-title">{task.title}</span>
-                                    <span className={`task-type-badge task-type-badge--${task.type}`}>{task.type}</span>
+                                    <span className={`task-type-badge task-type-badge--${task.type}`}>{" "+task.type}</span>
                                 </li>
                             ))}
                         </ul>

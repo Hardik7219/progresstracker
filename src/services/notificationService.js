@@ -13,7 +13,7 @@ export async function createChannel() {
         name: "Progress Reminders",
         description: "Task reminder notifications",
         importance: 4,
-        sound: "notify_sound.wav"
+        sound: "notify_sound.wav" 
     });
 }
 export async function scheduleAt({ id, title, body, at }) {

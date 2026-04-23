@@ -11,6 +11,8 @@ const validator = require('validator');
 const crypto = require('crypto');
 const mailer = require('./mailer');
 const port = process.env.PORT || 4000 
+const rateLimit = require("express-rate-limit"); 
+
 
 app.use(cookies())
 app.use(cors({
@@ -27,7 +29,15 @@ app.get('/',(req,res)=>{
 })
 
 
-app.post('/create', async (req, res) => {
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 100, // limit each IP
+  message: "Too many requests, try again later"
+});
+
+app.use(limiter);
+app.post('/create', rateLimit({ windowMs: 10 * 60 * 1000, max: 5 }),async (req, res) => {
     const { userName, email, password } = req.body;
 
     if (!userName || !email || !password)
@@ -120,7 +130,7 @@ async function sendVerificationEmail(email, token, baseURL) {
         console.error('Verification email failed (non-fatal):', err.message);
     }
 }
-app.post('/login', async (req, res) => {
+app.post('/login',rateLimit({ windowMs: 10 * 60 * 1000, max: 5 }), async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {

@@ -29,7 +29,7 @@ ChartJS.register(
     Filler,
     ArcElement
 );
-
+import Loader from './Loader';
 function FriendData({ refreshKey }) {
     const [data, setData] = useState(null);
     const [msg, setMsg] = useState('')
@@ -44,6 +44,7 @@ function FriendData({ refreshKey }) {
     const [daily, setDaily] = useState([]);
     const [weekly, setWeekly] = useState([]);
     const [streak, setStreak] = useState({ current: 0, longest: 0 });
+    const [loader,setLoader]= useState(false)
     const [trend, setTrend] = useState({ trend: 'neutral', message: '', icon: '' });
     const url = import.meta.env.VITE_API_URL || 'http://localhost:4000'
     useEffect(() => {
@@ -71,7 +72,7 @@ function FriendData({ refreshKey }) {
             .then(data => {anydata(data)
                 setLoading(false)
             })
-            .catch(() => console.log("No data"));
+            .catch(() => {console.log("No data"),setLoading(false)});
             setMsg("")
     }, [data])
     useEffect(() => {
@@ -90,6 +91,8 @@ function FriendData({ refreshKey }) {
     const sendRequest = async () => {
         if (!data?.id) { setMsg("Please login first"); return; }
         if (!frd?.trim()) { setMsg("Enter a username"); return; }
+        if(loader) return 
+        setLoader(true);
         try {
             const token = localStorage.getItem('token');
             const res = await fetch(`${url}/friend`, {
@@ -101,9 +104,11 @@ function FriendData({ refreshKey }) {
                 body: JSON.stringify({ frd, id: data.id })
             });
             const result = await res.json();
+            setLoader(false)
             setMsg(result.message);
         } catch (error) {
             setMsg("Something went wrong");
+            setLoader(false)
         }
     };
 
@@ -187,7 +192,13 @@ function FriendData({ refreshKey }) {
             <div className='w-full'>
                 <div>
 
-
+                {loader && (
+                      <div className='flex z-50 top-0 fixed self-center w-full h-screen justify-self-center justify-center items-center'>
+                      <div className=" w-full h-screen backdrop-blur-sm flex justify-center items-center">
+                      <Loader></Loader>
+                      </div>
+                      </div>
+                      )}
                 {loading && (
 
                     <div className='h-screen  animate-pulse '>

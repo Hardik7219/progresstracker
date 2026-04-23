@@ -5,12 +5,18 @@ export default function TaskForm({ task, onSubmit, onClose }) {
     const [title, setTitle] = useState(task?.title || '');
     const [description, setDescription] = useState(task?.description || '');
     const [type, setType] = useState(task?.type || 'one-time');
-
+    const [datetime, setDatetime] = useState('');
+    const [shedual,setShedual]= useState(false);
     function handleSubmit(e) {
         e.preventDefault();
         if (!title.trim()) return;
-        onSubmit({ title: title.trim(), description: description.trim(), type });
+        
+        onSubmit({ title: title.trim(), description: description.trim(), type ,datetime});
     }
+
+    const pad = v => String(v).padStart(2, '0');
+    const localNow = new Date();
+    const minDatetime = `${localNow.getFullYear()}-${pad(localNow.getMonth()+1)}-${pad(localNow.getDate())}T${pad(localNow.getHours())}:${pad(localNow.getMinutes())}`;
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -44,6 +50,18 @@ export default function TaskForm({ task, onSubmit, onClose }) {
                             rows={3}
                         />
                     </div>
+                    <div>
+                        <button type="button" className='type-btn' onClick={()=>setShedual(true)}>Shedual Task</button>
+                    </div>
+                    {shedual && (
+
+                        <div className="form-group">
+                        <label htmlFor="notif-time">Time*</label>
+                        <input id="notif-time" type="time" value={datetime} min={minDatetime}
+                            onChange={e => setDatetime(e.target.value)}
+                            style={{ background:'var(--color-bg-input)', border:'1px solid var(--color-border)', borderRadius:'var(--radius-sm)', color:'var(--color-text)', padding:'8px 12px', fontSize:'0.95rem', width:'100%', boxSizing:'border-box' }} />
+                        </div>
+                        )}
                     <div className="form-group">
                         <label>Type</label>
                         <div className="type-selector">
